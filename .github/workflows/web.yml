@@ -1,0 +1,59 @@
+name: Build & Deploy (Web)
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Emscripten (adds emcc/emrun to PATH)
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      # Odin (grab a prebuilt and add to PATH)
+      - name: Install Odin
+        run: |
+          sudo apt-get update && sudo apt-get install -y unzip
+          ODIN_VERSION=dev-2025-08
+          curl -L "https://github.com/odin-lang/Odin/releases/download/${ODIN_VERSION}/odin-linux-amd64.zip" -o odin.zip
+          unzip -q odin.zip -d $HOME/odin
+          echo "$HOME/odin" >> $GITHUB_PATH
+          odin version
+
+      - name: Build Web
+        run: |
+          chmod +x ./build_web.sh
+          ./build_web.sh
+
+      - name: Upload artifact (Pages)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
