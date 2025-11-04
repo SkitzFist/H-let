@@ -31,7 +31,8 @@ import "core:fmt"
 import "core:math/rand"
 import rl "vendor:raylib"
 
-PIXEL_WINDOW_HEIGHT :: 180
+GAME_WIDTH :: 1920
+GAME_HEIGHT :: 1080
 
 Game_Memory :: struct {
 	objects:  Objects,
@@ -42,83 +43,10 @@ Game_Memory :: struct {
 
 g: ^Game_Memory
 
-game_camera :: proc() -> rl.Camera2D {
-	w := f32(rl.GetScreenWidth())
-	h := f32(rl.GetScreenHeight())
-
-	return {zoom = h / PIXEL_WINDOW_HEIGHT, target = {0.0, 0.0}, offset = {w / 2, h / 2}}
-}
-
-ui_camera :: proc() -> rl.Camera2D {
-	return {zoom = f32(rl.GetScreenHeight()) / PIXEL_WINDOW_HEIGHT}
-}
-
-input :: proc() {
-	if rl.IsKeyPressed(.ESCAPE) {
-		g.run = false
-		return
-	}
-
-	hole_input_size(&g.hole)
-}
-
-update :: proc() {
-	dt := rl.GetFrameTime()
-
-	hole_update_size(&g.hole, dt)
-	hole_attract_objects(&g.hole, &g.objects, g.toRemove[:])
-
-	objects_apply_forces(&g.objects, dt)
-
-}
-
-draw :: proc() {
-	hole := &g.hole
-	objects := &g.objects
-
-	rl.BeginDrawing()
-	rl.ClearBackground(rl.GRAY)
-
-	//rl.BeginMode2D(game_camera())
-	rl.DrawCircle(hole.x, hole.y, hole.size, rl.BLACK)
-
-	rl.DrawCircleLines(hole.x, hole.y, hole.size * hole.reach_radius, rl.BLUE)
-
-	for i in 0 ..< objects.length {
-		rl.DrawTexture(objects.texture, i32(objects.x[i]), i32(objects.y[i]), rl.WHITE)
-	}
-
-	//rl.EndMode2D()
-
-	//rl.BeginMode2D(ui_camera())
-
-	rl.DrawText(
-		fmt.ctprintf("fps: %i\nObjects: %i", rl.GetFPS(), objects.length),
-		5,
-		5,
-		8,
-		rl.WHITE,
-	)
-
-	//rl.EndMode2D()
-
-	rl.EndDrawing()
-}
-
-@(export)
-game_update :: proc() {
-	input()
-	update()
-	draw()
-
-	// Everything on tracking allocator is valid until end-of-frame.
-	free_all(context.temp_allocator)
-}
-
 @(export)
 game_init_window :: proc() {
-	rl.SetConfigFlags({.WINDOW_RESIZABLE, .VSYNC_HINT})
-	rl.InitWindow(1280, 720, "Hålet")
+	rl.SetConfigFlags({.VSYNC_HINT})
+	rl.InitWindow(GAME_WIDTH, GAME_HEIGHT, "Hålet")
 	rl.SetTargetFPS(500)
 	rl.SetExitKey(nil)
 }
@@ -152,6 +80,28 @@ game_init :: proc() {
 
 	game_hot_reloaded(g)
 }
+
+game_camera :: proc() -> rl.Camera2D {
+	w := f32(rl.GetScreenWidth())
+	h := f32(rl.GetScreenHeight())
+
+	return {zoom = 1.0, target = {0.0, 0.0}}
+}
+
+ui_camera :: proc() -> rl.Camera2D {
+	return {zoom = 1.0}
+}
+
+@(export)
+game_update :: proc() {
+	input()
+	update()
+	draw()
+
+	// Everything on tracking allocator is valid until end-of-frame.
+	free_all(context.temp_allocator)
+}
+
 
 @(export)
 game_should_run :: proc() -> bool {
@@ -207,5 +157,5 @@ game_force_restart :: proc() -> bool {
 // In a web build, this is called when browser changes size. Remove the
 // `rl.SetWindowSize` call if you don't want a resizable game.
 game_parent_window_size_changed :: proc(w, h: int) {
-	rl.SetWindowSize(i32(w), i32(h))
+	//rl.SetWindowSize(i32(w), i32(h))
 }
