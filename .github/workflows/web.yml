@@ -28,8 +28,7 @@ jobs:
       - name: Setup Odin
         uses: laytan/setup-odin@v2
         with:
-          token: false
-          release: dev-2025-08
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build Web
         run: |
