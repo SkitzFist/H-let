@@ -27,27 +27,33 @@ created.
 
 package game
 
-import "core:fmt"
+import "components"
 import "core:math/rand"
+import "core:mem"
 import rl "vendor:raylib"
 
-GAME_WIDTH :: 1920
-GAME_HEIGHT :: 1080
 
+CAP :: 1000
 Game_Memory :: struct {
-	objects:  Objects,
-	hole:     Hole,
-	toRemove: [MAX_LENGTH]int,
-	run:      bool,
+	holeManager: HoleManager,
+	textures:    [Texture]rl.Texture2D,
+	positions:   #soa[dynamic]components.Position,
+	physics:     #soa[dynamic]components.Physic,
+	sizes:       #soa[dynamic]components.Size,
+	obj_texture: [dynamic]Texture,
+	run:         bool,
 }
 
 g: ^Game_Memory
 
 @(export)
 game_init_window :: proc() {
-	rl.SetConfigFlags({.VSYNC_HINT})
-	rl.InitWindow(GAME_WIDTH, GAME_HEIGHT, "Hålet")
-	rl.SetTargetFPS(500)
+	//rl.SetConfigFlags({.VSYNC_HINT})
+	monitor := rl.GetCurrentMonitor()
+	width := rl.GetMonitorWidth(monitor)
+	height := rl.GetMonitorHeight(monitor)
+	rl.InitWindow(width, height, "Hålet")
+	//rl.SetTargetFPS(500)
 	rl.SetExitKey(nil)
 }
 
@@ -57,23 +63,44 @@ game_init :: proc() {
 
 	g^ = Game_Memory {
 		run = true,
-		objects = {texture = create_texture()},
-		hole = {
-			size = 40,
-			base_reach_radius = 4.0,
-			mass = 100000.0,
-			max_reach_multiplier = 1.5,
-			curr_reach_multiplier = 0.0,
+		positions = make(#soa[dynamic]components.Position, 0, CAP, context.allocator),
+		physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
+		sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
+		holeManager = {
+			holes = make([dynamic]Hole, 0, 10, context.allocator),
+			max = 5,
+			current = 0,
+		},
+		textures = {
+			.SQUARE = create_texture(),
+			.BACKGROUND = rl.LoadTexture("assets/Grass_1.png"),
 		},
 	}
 
-	if g.objects.length == 0 {
-		for i in 0 ..< MAX_LENGTH {
+
+	if len(g.positions) == 0 {
+		init_count := CAP
+		for i in 0 ..< init_count {
+			pos: components.Position = {
+				x = rand.float32_range(0, f32(rl.GetRenderWidth())),
+				y = rand.float32_range(0, f32(rl.GetRenderHeight())),
+			}
+			phys: components.Physic = {
+				mass = rand.float32_range(10, 50),
+			}
+			size: components.Size = {
+				width  = f32(g.textures[.SQUARE].width),
+				height = f32(g.textures[.SQUARE].height),
+			}
 			objects_add(
-				&g.objects,
-				rand.float32_range(0, f32(rl.GetScreenWidth())),
-				rand.float32_range(0, f32(rl.GetScreenHeight())),
-				rand.float32_range(10, 50),
+				&g.positions,
+				pos,
+				&g.physics,
+				phys,
+				&g.sizes,
+				size,
+				&g.obj_texture,
+				.SQUARE,
 			)
 		}
 	}
@@ -96,7 +123,11 @@ ui_camera :: proc() -> rl.Camera2D {
 game_update :: proc() {
 	input()
 	update()
+
+	rl.BeginDrawing()
+	rl.ClearBackground(rl.GRAY)
 	draw()
+	rl.EndDrawing()
 
 	// Everything on tracking allocator is valid until end-of-frame.
 	free_all(context.temp_allocator)
@@ -117,7 +148,16 @@ game_should_run :: proc() -> bool {
 
 @(export)
 game_shutdown :: proc() {
-	rl.UnloadTexture(g.objects.texture)
+	for &texture in g.textures {
+		rl.UnloadTexture(texture)
+	}
+
+	delete(g.positions)
+	delete(g.physics)
+	delete(g.sizes)
+	delete(g.obj_texture)
+	delete(g.holeManager.holes)
+
 	free(g)
 }
 
@@ -157,5 +197,5 @@ game_force_restart :: proc() -> bool {
 // In a web build, this is called when browser changes size. Remove the
 // `rl.SetWindowSize` call if you don't want a resizable game.
 game_parent_window_size_changed :: proc(w, h: int) {
-	//rl.SetWindowSize(i32(w), i32(h))
+	rl.SetWindowSize(i32(w), i32(h))
 }

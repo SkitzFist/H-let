@@ -49,6 +49,11 @@
                 });
             },
 
+            onMemoryGrowth() {
+                // Rebind Odin’s views to the new buffer after growth
+                odinMemoryInterface.setMemory(odinWasmExports.memory);
+            },
+
             onRuntimeInitialized: () => {
                 const e = odinWasmExports || odinMemoryInterface.getExports();
                 // Calls any procedure marked with @init

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
+hash -r  # clear any cached command locations
+
 # OUT_DIR is for everything except the exe. The exe needs to stay in root
 # folder so it sees the assets folder, without having to copy it.
 OUT_DIR=build/hot_reload

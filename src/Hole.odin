@@ -1,7 +1,14 @@
 package game
 
+import c "components"
 import "core:math"
 import rl "vendor:raylib"
+
+HoleManager :: struct {
+	holes:   [dynamic]Hole,
+	max:     int,
+	current: int,
+}
 
 Hole :: struct {
 	x, y:                  i32,
@@ -13,14 +20,29 @@ Hole :: struct {
 	curr_reach_multiplier: f32,
 }
 
-hole_input_size :: proc(hole: ^Hole) {
+hole_create_default :: proc() -> Hole {
+	mousePos := rl.GetMousePosition()
+	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
+
+	return {
+		x = i32(pos.x),
+		y = i32(pos.y),
+		size = 40,
+		base_reach_radius = 4.0,
+		mass = 100000.0,
+		max_reach_multiplier = 1.5,
+		curr_reach_multiplier = 0.0,
+	}
+}
+
+hole_input_size :: proc(manager: ^HoleManager) {
 	INC_FACTOR :: 0.05
 
-	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
-		hole.curr_reach_multiplier += INC_FACTOR
+	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) && manager.current < manager.max {
+		append(&manager.holes, hole_create_default())
+		manager.current += 1
 	}
 
-	hole.curr_reach_multiplier = math.min(hole.max_reach_multiplier, hole.curr_reach_multiplier)
 }
 
 hole_update_size :: proc(hole: ^Hole, dt: f32) {
@@ -31,61 +53,49 @@ hole_update_size :: proc(hole: ^Hole, dt: f32) {
 
 	hole.curr_reach_multiplier = math.max(hole.curr_reach_multiplier, 0.0)
 	hole.reach_radius =
-		hole.base_reach_radius + (hole.base_reach_radius * hole.curr_reach_multiplier)
-
-	hole_center(hole)
+	hole.base_reach_radius + (hole.base_reach_radius * hole.curr_reach_multiplier)
 }
 
-hole_center :: proc(hole: ^Hole) {
-	hole.x = (rl.GetRenderWidth() / 2)
-	hole.y = (rl.GetRenderHeight() / 2)
-}
 
-hole_attract_objects :: proc(hole: ^Hole, objects: ^Objects, toRemove: []int) #no_bounds_check {
+hole_attract_objects :: proc(
+	hole: ^Hole,
+	positions: ^#soa[dynamic]c.Position,
+	physics: ^#soa[dynamic]c.Physic,
+	sizes: ^#soa[dynamic]c.Size,
+) #no_bounds_check {
 	damp: f32 : 100.0
-
-	toRemoveCount := 0
-
-	halfSize := f32(objects.texture.width / 2)
-	size2 := hole.size * hole.size
 
 
 	holeOuterRadius := hole.size * hole.reach_radius
+	size2 := hole.size * hole.size
 
-	objectWidth := f32(objects.texture.width)
-	objectHeight := f32(objects.texture.height)
+	px := positions.x
+	py := positions.y
+	sw := sizes.width
+	sh := sizes.height
+	ax := physics.ax
+	ay := physics.ay
+	mass := physics.mass
 
-	for i in 0 ..< objects.length {
+	length := len(positions^)
 
-		if !intersects(
-			f32(hole.x),
-			f32(hole.y),
-			holeOuterRadius,
-			objects.x[i],
-			objects.y[i],
-			objectWidth,
-			objectHeight,
-		) {
+	toRemove := make([dynamic]int, 0, context.temp_allocator)
+
+	for i in 0 ..< length {
+
+		if !intersects(f32(hole.x), f32(hole.y), holeOuterRadius, px[i], py[i], sw[i], sh[i]) {
 			continue
 		}
 
-		holeInnerRadius := hole.size - (objectWidth * 2)
-		if intersects(
-			f32(hole.x),
-			f32(hole.y),
-			holeInnerRadius,
-			objects.x[i],
-			objects.y[i],
-			objectWidth,
-			objectHeight,
-		) {
-			toRemove[toRemoveCount] = i
-			toRemoveCount += 1
+
+		holeInnerRadius := hole.size - (sw[i] * 2)
+		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
+			append(&toRemove, i)
 			continue
 		}
 
-		dx := f32(hole.x) - objects.x[i]
-		dy := f32(hole.y) - objects.y[i]
+		dx := f32(hole.x) - px[i]
+		dy := f32(hole.y) - py[i]
 
 		d2 := dx * dx + dy * dy
 
@@ -97,22 +107,23 @@ hole_attract_objects :: proc(hole: ^Hole, objects: ^Objects, toRemove: []int) #n
 		strength := hole.mass * inv_denom
 
 
-		objects.ax[i] = (dx * strength) / objects.mass[i]
-		objects.ay[i] = (dy * strength) / objects.mass[i]
+		ax[i] += (dx * strength) / mass[i]
+		ay[i] += (dy * strength) / mass[i]
 	}
 
 
-	growth: f64 = 0.0
-	index: int
-	for i in 0 ..< toRemoveCount {
-		index := toRemove[i]
-		growth += f64(objects.mass[i]) * 0.001
-
-		objects_remove(objects, index)
+	size_growth: f64 = 0.0
+	mass_growth: f64 = 0.0
+	
+	for i in toRemove {
+		size_growth += f64(mass[i]) * 0.001
+		mass_growth += f64(mass[i])
+		//this should not be done from hole, hole should only report what indexes shoudl be removed
+		objects_remove(i, positions, physics, sizes)
 	}
 
-	if growth > 0 {
-		hole.size += f32(growth)
-		hole_center(hole)
+	if mass_growth > 0 {
+		hole.size += f32(size_growth)
+		hole.mass += f32(mass_growth)
 	}
 }
