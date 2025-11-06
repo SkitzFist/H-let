@@ -1,6 +1,5 @@
 package game
 import "core:fmt"
-import "core:math/rand"
 import rl "vendor:raylib"
 
 input :: proc() {
@@ -9,27 +8,25 @@ input :: proc() {
 		return
 	}
 
-	hole_input_size(&g.hole)
+	hole_input_size(&g.holeManager)
 }
 
 update :: proc() {
 	dt := rl.GetFrameTime()
 
-	hole_update_size(&g.hole, dt)
-	hole_attract_objects(&g.hole, &g.objects, g.toRemove[:])
+	for &hole in g.holeManager.holes {
+		hole_update_size(&hole, dt)
+		hole_attract_objects(&hole, &g.positions, &g.physics, &g.sizes)
+	}
 
-	objects_apply_forces(&g.objects, dt)
+	objects_apply_forces(&g.positions, &g.physics, dt)
 
 }
 
 draw :: proc() {
-	hole := &g.hole
-	objects := &g.objects
 	textures := &g.textures
 
-	rl.BeginDrawing()
-	rl.ClearBackground(rl.GRAY)
-
+	// BGR
 	src: rl.Rectangle = {
 		0,
 		0,
@@ -40,12 +37,28 @@ draw :: proc() {
 	rl.DrawTexturePro(textures[.BACKGROUND], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 
 	rl.BeginMode2D(game_camera())
-	rl.DrawCircle(hole.x, hole.y, hole.size, rl.BLACK)
 
-	rl.DrawCircleLines(hole.x, hole.y, hole.size * hole.reach_radius, rl.BLUE)
+	// Hole
+	for &hole in g.holeManager.holes {
+		rl.DrawCircle(hole.x, hole.y, hole.size, rl.BLACK)
+		rl.DrawCircleLines(hole.x, hole.y, hole.size * hole.reach_radius, rl.BLUE)
+	}
 
-	for i in 0 ..< objects.length {
-		rl.DrawTexture(objects.texture, i32(objects.x[i]), i32(objects.y[i]), rl.WHITE)
+
+	// objects
+	positions := &g.positions
+	sizes := &g.sizes
+	px := positions.x
+	py := positions.y
+	sw := sizes.width
+	sh := sizes.height
+
+	for i in 0 ..< len(positions^) {
+		texture := g.obj_texture[i]
+
+		src = {0, 0, f32(g.textures[texture].width), f32(g.textures[texture].height)}
+		dst = {px[i], py[i], sw[i], sh[i]}
+		rl.DrawTexturePro(g.textures[texture], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 	}
 
 	rl.EndMode2D()
@@ -53,7 +66,7 @@ draw :: proc() {
 	//rl.BeginMode2D(ui_camera())
 
 	rl.DrawText(
-		fmt.ctprintf("fps: %i\nObjects: %i", rl.GetFPS(), objects.length),
+		fmt.ctprintf("fps: %i\nObjects: %i", rl.GetFPS(), len(positions^)),
 		5,
 		5,
 		8,
@@ -61,6 +74,4 @@ draw :: proc() {
 	)
 
 	//rl.EndMode2D()
-
-	rl.EndDrawing()
 }
