@@ -116,7 +116,7 @@ hole_attract_objects :: proc(
 	mass_growth: f64 = 0.0
 	
 	for i in toRemove {
-		size_growth += f64(mass[i]) * 0.001
+		size_growth += f64(mass[i]) * 0.01
 		mass_growth += f64(mass[i])
 		//this should not be done from hole, hole should only report what indexes shoudl be removed
 		objects_remove(i, positions, physics, sizes)
