@@ -31,13 +31,11 @@ import "core:fmt"
 import "core:math/rand"
 import rl "vendor:raylib"
 
-GAME_WIDTH :: 1920
-GAME_HEIGHT :: 1080
-
 Game_Memory :: struct {
 	objects:  Objects,
 	hole:     Hole,
 	toRemove: [MAX_LENGTH]int,
+	textures: [Texture]rl.Texture2D,
 	run:      bool,
 }
 
@@ -45,8 +43,11 @@ g: ^Game_Memory
 
 @(export)
 game_init_window :: proc() {
-	rl.SetConfigFlags({.VSYNC_HINT})
-	rl.InitWindow(GAME_WIDTH, GAME_HEIGHT, "Hålet")
+	//rl.SetConfigFlags({.VSYNC_HINT})
+	monitor := rl.GetCurrentMonitor()
+	width := rl.GetMonitorWidth(monitor)
+	height := rl.GetMonitorHeight(monitor)
+	rl.InitWindow(width, height, "Hålet")
 	rl.SetTargetFPS(500)
 	rl.SetExitKey(nil)
 }
@@ -64,6 +65,10 @@ game_init :: proc() {
 			mass = 100000.0,
 			max_reach_multiplier = 1.5,
 			curr_reach_multiplier = 0.0,
+		},
+		textures = {
+			.SQUARE = create_texture(),
+			.BACKGROUND = rl.LoadTexture("assets/Grass_1.png"),
 		},
 	}
 
@@ -157,5 +162,5 @@ game_force_restart :: proc() -> bool {
 // In a web build, this is called when browser changes size. Remove the
 // `rl.SetWindowSize` call if you don't want a resizable game.
 game_parent_window_size_changed :: proc(w, h: int) {
-	//rl.SetWindowSize(i32(w), i32(h))
+	rl.SetWindowSize(i32(w), i32(h))
 }

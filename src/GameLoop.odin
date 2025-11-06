@@ -25,9 +25,19 @@ update :: proc() {
 draw :: proc() {
 	hole := &g.hole
 	objects := &g.objects
+	textures := &g.textures
 
 	rl.BeginDrawing()
 	rl.ClearBackground(rl.GRAY)
+
+	src: rl.Rectangle = {
+		0,
+		0,
+		f32(g.textures[.BACKGROUND].width),
+		f32(g.textures[.BACKGROUND].height),
+	}
+	dst: rl.Rectangle = {0, 0, f32(rl.GetRenderWidth()), f32(rl.GetRenderHeight())}
+	rl.DrawTexturePro(textures[.BACKGROUND], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 
 	rl.BeginMode2D(game_camera())
 	rl.DrawCircle(hole.x, hole.y, hole.size, rl.BLACK)
