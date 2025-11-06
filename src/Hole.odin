@@ -6,38 +6,31 @@ import rl "vendor:raylib"
 
 HoleManager :: struct {
 	holes:   [dynamic]Hole,
+	stats:   HoleStats,
 	max:     int,
 	current: int,
 }
 
+HoleStats :: struct {
+	evaporationForce: f32,
+	growth_rate:      f64,
+}
+
 Hole :: struct {
-	x, y:                  i32,
-	size:                  f32,
-	base_reach_radius:     f32,
-	reach_radius:          f32,
-	mass:                  f32,
-	max_reach_multiplier:  f32,
-	curr_reach_multiplier: f32,
+	x, y:         i32,
+	size:         f32,
+	reach_radius: f32,
+	mass:         f32,
 }
 
 hole_create_default :: proc() -> Hole {
 	mousePos := rl.GetMousePosition()
 	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
 
-	return {
-		x = i32(pos.x),
-		y = i32(pos.y),
-		size = 40,
-		base_reach_radius = 4.0,
-		mass = 100000.0,
-		max_reach_multiplier = 1.5,
-		curr_reach_multiplier = 0.0,
-	}
+	return {x = i32(pos.x), y = i32(pos.y), size = 40, reach_radius = 4.0, mass = 100000.0}
 }
 
 hole_input_size :: proc(manager: ^HoleManager) {
-	INC_FACTOR :: 0.05
-
 	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) && manager.current < manager.max {
 		append(&manager.holes, hole_create_default())
 		manager.current += 1
@@ -45,20 +38,21 @@ hole_input_size :: proc(manager: ^HoleManager) {
 
 }
 
-hole_update_size :: proc(hole: ^Hole, dt: f32) {
-	DAMP :: 0.1
-	if hole.curr_reach_multiplier > 0.0 {
-		hole.curr_reach_multiplier -= DAMP * dt
+hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
+	sizeFactor := 1 / hole.size
+	hole.size -= stats.evaporationForce * dt * sizeFactor
+
+	if hole.size < 2.0 {
+		return true
 	}
 
-	hole.curr_reach_multiplier = math.max(hole.curr_reach_multiplier, 0.0)
-	hole.reach_radius =
-	hole.base_reach_radius + (hole.base_reach_radius * hole.curr_reach_multiplier)
+	return false
 }
 
 
 hole_attract_objects :: proc(
 	hole: ^Hole,
+	stats: ^HoleStats,
 	positions: ^#soa[dynamic]c.Position,
 	physics: ^#soa[dynamic]c.Physic,
 	sizes: ^#soa[dynamic]c.Size,
@@ -114,9 +108,9 @@ hole_attract_objects :: proc(
 
 	size_growth: f64 = 0.0
 	mass_growth: f64 = 0.0
-	
+
 	for i in toRemove {
-		size_growth += f64(mass[i]) * 0.01
+		size_growth += f64(mass[i]) * stats.growth_rate
 		mass_growth += f64(mass[i])
 		//this should not be done from hole, hole should only report what indexes shoudl be removed
 		objects_remove(i, positions, physics, sizes)
