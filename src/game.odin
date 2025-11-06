@@ -70,6 +70,7 @@ game_init :: proc() {
 			holes = make([dynamic]Hole, 0, 10, context.allocator),
 			max = 5,
 			current = 0,
+			stats = {evaporationForce = 100, growth_rate = 0.005},
 		},
 		textures = {
 			.SQUARE = create_texture(),

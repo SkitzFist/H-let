@@ -1,6 +1,11 @@
 package game
 import "core:fmt"
+import "core:math/rand"
+import "core:time"
+
 import rl "vendor:raylib"
+
+import "components"
 
 input :: proc() {
 	if rl.IsKeyPressed(.ESCAPE) {
@@ -11,16 +16,46 @@ input :: proc() {
 	hole_input_size(&g.holeManager)
 }
 
+durr: f32 = 0.5
+curr: f32 = 0.0
 update :: proc() {
 	dt := rl.GetFrameTime()
 
-	for &hole in g.holeManager.holes {
-		hole_update_size(&hole, dt)
-		hole_attract_objects(&hole, &g.positions, &g.physics, &g.sizes)
+	toRemove := make([dynamic]int, 0, context.temp_allocator)
+
+	for &hole, i in g.holeManager.holes {
+		if hole_evaporate(&hole, &g.holeManager.stats, dt) {
+			append(&toRemove, i)
+		}
+		hole_attract_objects(&hole, &g.holeManager.stats, &g.positions, &g.physics, &g.sizes)
+	}
+
+	for i in toRemove {
+		unordered_remove(&g.holeManager.holes, i)
+		g.holeManager.current -= 1
 	}
 
 	objects_apply_forces(&g.positions, &g.physics, dt)
 
+	curr += dt
+
+	if curr >= durr {
+		//create an object:
+		pos: components.Position = {
+			x = rand.float32_range(0, f32(rl.GetRenderWidth())),
+			y = rand.float32_range(0, f32(rl.GetRenderHeight())),
+		}
+		phys: components.Physic = {
+			mass = rand.float32_range(10, 50),
+		}
+		size: components.Size = {
+			width  = f32(g.textures[.SQUARE].width),
+			height = f32(g.textures[.SQUARE].height),
+		}
+		objects_add(&g.positions, pos, &g.physics, phys, &g.sizes, size, &g.obj_texture, .SQUARE)
+
+		curr = 0
+	}
 }
 
 draw :: proc() {
@@ -66,7 +101,12 @@ draw :: proc() {
 	//rl.BeginMode2D(ui_camera())
 
 	rl.DrawText(
-		fmt.ctprintf("fps: %i\nObjects: %i", rl.GetFPS(), len(positions^)),
+		fmt.ctprintf(
+			"fps: %i\nObjects: %i\nHoles:%i",
+			rl.GetFPS(),
+			len(positions^),
+			len(g.holeManager.holes),
+		),
 		5,
 		5,
 		8,
