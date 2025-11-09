@@ -1,78 +1,39 @@
 package game
 
-import "base:intrinsics"
-import c "components"
-import "core:math"
+import "core:math/rand"
 import rl "vendor:raylib"
 
-//debug
-import "core:fmt"
 
+objects_add_random :: #force_inline proc(ecs: ^Ecs) {
+	id, err := create_entity(&g.ecs)
 
-objects_add :: #force_inline proc(
-	positions: ^#soa[dynamic]c.Position,
-	position: c.Position,
-	physics: ^#soa[dynamic]c.Physic,
-	physic: c.Physic,
-	sizes: ^#soa[dynamic]c.Size,
-	size: c.Size,
-	textures: ^[dynamic]Texture,
-	texture: Texture,
-) {
-
-	n, err := append_soa(positions, position)
-
-	n1, err1 := append_soa(physics, physic)
-	if n != n1 {
-		panic(
-			"[Objects]objects_add: {Physics} indexes does not match up, entities are out of sync!",
-		)
+	pos: Position = {
+		x  = rand.float32_range(0, f32(rl.GetRenderWidth())),
+		y  = rand.float32_range(0, f32(rl.GetRenderHeight())),
+		id = id,
 	}
+	add_component(&g.ecs, pos, id)
 
-	n1, err1 = append_soa(sizes, size)
-	if n != n1 {
-		panic("[Objects]objects_add: {Sizes} indexes does not match up, entities are out of sync!")
+	factor := rand.float32_range(1.0, 2.0)
+
+	base_mass: f32 = 10
+	phys: Physic = {
+		mass       = base_mass * factor,
+		properties = {.DENOM},
+		id         = id,
 	}
+	add_component(&g.ecs, phys, id)
 
-	append(textures, texture)
-}
-
-objects_remove :: #force_inline proc(
-	index: int,
-	positions: ^#soa[dynamic]c.Position,
-	physics: ^#soa[dynamic]c.Physic,
-	sizes: ^#soa[dynamic]c.Size,
-) {
-	unordered_remove_soa(positions, index)
-	unordered_remove_soa(physics, index)
-	unordered_remove_soa(sizes, index)
-}
-
-objects_apply_forces :: proc(
-	positions: ^#soa[dynamic]c.Position,
-	physics: ^#soa[dynamic]c.Physic,
-	dt: f32,
-) #no_bounds_check {
-
-
-	length := len(positions^)
-
-	px := positions.x
-	py := positions.y
-
-	vx := physics.vx
-	vy := physics.vy
-	ax := physics.ax
-	ay := physics.ay
-
-	for i in 0 ..< length {
-		vx[i] = intrinsics.fused_mul_add(ax[i], dt, vx[i])
-		vy[i] = intrinsics.fused_mul_add(ay[i], dt, vy[i])
-
-		ax[i] = 0
-		ay[i] = 0
-
-		px[i] = intrinsics.fused_mul_add(vx[i], dt, px[i])
-		py[i] = intrinsics.fused_mul_add(vy[i], dt, py[i])
+	size: Size = {
+		width  = f32(g.textureBank[.SQUARE].width) * factor,
+		height = f32(g.textureBank[.SQUARE].height) * factor,
+		id     = id,
 	}
+	add_component(&g.ecs, size, id)
+
+	texture: SingleTexture = {
+		type = .SQUARE,
+		id   = id,
+	}
+	add_component(&g.ecs, texture, id)
 }

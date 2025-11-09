@@ -1,11 +1,8 @@
 package game
 import "core:fmt"
 import "core:math/rand"
-import "core:time"
 
 import rl "vendor:raylib"
-
-import "components"
 
 input :: proc() {
 	if rl.IsKeyPressed(.ESCAPE) {
@@ -13,99 +10,80 @@ input :: proc() {
 		return
 	}
 
-	hole_input_size(&g.holeManager)
+	hole_input_size(&g.ecs, &g.holeManager)
 }
 
+//tmp stuff
 durr: f32 = 0.5
 curr: f32 = 0.0
 update :: proc() {
 	dt := rl.GetFrameTime()
 
-	toRemove := make([dynamic]int, 0, context.temp_allocator)
+	c := &g.ecs.components
 
-	for &hole, i in g.holeManager.holes {
-		if hole_evaporate(&hole, &g.holeManager.stats, dt) {
-			append(&toRemove, i)
-		}
-		hole_attract_objects(&hole, &g.holeManager.stats, &g.positions, &g.physics, &g.sizes)
-	}
+	// evaporate
 
-	for i in toRemove {
-		unordered_remove(&g.holeManager.holes, i)
-		g.holeManager.current -= 1
-	}
+	// attract
+	attract(&g.ecs, &c.attractors, &c.positions, &c.sizes, &c.physics)
 
-	objects_apply_forces(&g.positions, &g.physics, dt)
+	// apply forces
+	apply_forces(&c.positions, &c.physics, dt)
+
+	// collision
 
 	curr += dt
-
 	if curr >= durr {
 		//create an object:
-		pos: components.Position = {
+		pos: Position = {
 			x = rand.float32_range(0, f32(rl.GetRenderWidth())),
 			y = rand.float32_range(0, f32(rl.GetRenderHeight())),
 		}
-		phys: components.Physic = {
+		phys: Physic = {
 			mass = rand.float32_range(10, 50),
 		}
-		size: components.Size = {
-			width  = f32(g.textures[.SQUARE].width),
-			height = f32(g.textures[.SQUARE].height),
+		size: Size = {
+			width  = f32(g.textureBank[.SQUARE].width),
+			height = f32(g.textureBank[.SQUARE].height),
 		}
-		objects_add(&g.positions, pos, &g.physics, phys, &g.sizes, size, &g.obj_texture, .SQUARE)
+
 
 		curr = 0
 	}
 }
 
 draw :: proc() {
-	textures := &g.textures
+	textures := &g.textureBank
+	c := &g.ecs.components
 
 	// BGR
 	src: rl.Rectangle = {
 		0,
 		0,
-		f32(g.textures[.BACKGROUND].width),
-		f32(g.textures[.BACKGROUND].height),
+		f32(g.textureBank[.BACKGROUND].width),
+		f32(g.textureBank[.BACKGROUND].height),
 	}
 	dst: rl.Rectangle = {0, 0, f32(rl.GetRenderWidth()), f32(rl.GetRenderHeight())}
 	rl.DrawTexturePro(textures[.BACKGROUND], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 
 	rl.BeginMode2D(game_camera())
 
-	// Hole
-	for &hole in g.holeManager.holes {
-		rl.DrawCircle(hole.x, hole.y, hole.size, rl.BLACK)
-		rl.DrawCircleLines(hole.x, hole.y, hole.size * hole.reach_radius, rl.BLUE)
-	}
+	draw_single_texture(g.textureBank, &c.singleTextures, &c.positions, &c.sizes)
+	draw_attract_radius(&g.ecs, &c.attractors, &c.positions, &c.sizes)
 
-
-	// objects
-	positions := &g.positions
-	sizes := &g.sizes
-	px := positions.x
-	py := positions.y
-	sw := sizes.width
-	sh := sizes.height
-
-	for i in 0 ..< len(positions^) {
-		texture := g.obj_texture[i]
-
-		src = {0, 0, f32(g.textures[texture].width), f32(g.textures[texture].height)}
-		dst = {px[i], py[i], sw[i], sh[i]}
-		rl.DrawTexturePro(g.textures[texture], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
-	}
 
 	rl.EndMode2D()
 
 	//rl.BeginMode2D(ui_camera())
 
+	shortcut_ratio: f64 = index_shortcut / (index_shortcut + index_n_shortcut)
+
 	rl.DrawText(
 		fmt.ctprintf(
-			"fps: %i\nObjects: %i\nHoles:%i",
+			"fps: %i\nEntities: %i\nHoles:%i\nshortcut ratio:%.3f",
 			rl.GetFPS(),
-			len(positions^),
-			len(g.holeManager.holes),
+			len(g.ecs.id),
+			len(g.ecs.components.attractors),
+			shortcut_ratio,
 		),
 		5,
 		5,

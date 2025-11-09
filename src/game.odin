@@ -27,20 +27,16 @@ created.
 
 package game
 
-import "components"
 import "core:math/rand"
 import "core:mem"
 import rl "vendor:raylib"
 
 
-CAP :: 1000
+CAP :: 5000
 Game_Memory :: struct {
+	ecs:         Ecs,
 	holeManager: HoleManager,
-	textures:    [Texture]rl.Texture2D,
-	positions:   #soa[dynamic]components.Position,
-	physics:     #soa[dynamic]components.Physic,
-	sizes:       #soa[dynamic]components.Size,
-	obj_texture: [dynamic]Texture,
+	textureBank: [TextureType]rl.Texture2D,
 	run:         bool,
 }
 
@@ -63,46 +59,32 @@ game_init :: proc() {
 
 	g^ = Game_Memory {
 		run = true,
-		positions = make(#soa[dynamic]components.Position, 0, CAP, context.allocator),
-		physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
-		sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
+		ecs = {
+			id = make([dynamic]int, 0, CAP, context.allocator),
+			component_set = make([dynamic]bit_set[ComponentType], 0, CAP, context.allocator),
+			components = {
+				positions = make(#soa[dynamic]Position, 0, CAP, context.allocator),
+				physics = make(#soa[dynamic]Physic, 0, CAP, context.allocator),
+				sizes = make(#soa[dynamic]Size, 0, CAP, context.allocator),
+			},
+		},
 		holeManager = {
-			holes = make([dynamic]Hole, 0, 10, context.allocator),
 			max = 5,
 			current = 0,
-			stats = {evaporationForce = 100, growth_rate = 0.005},
+			stats = {evaporation_force = 100, growth_rate = 0.005},
 		},
-		textures = {
-			.SQUARE = create_texture(),
+		textureBank = {
+			.SQUARE = create_square(),
 			.BACKGROUND = rl.LoadTexture("assets/Grass_1.png"),
+			.HOLE = create_hole_texture(),
 		},
 	}
 
 
-	if len(g.positions) == 0 {
-		init_count := CAP
+	if len(g.ecs.id) == 0 {
+		init_count := 2000
 		for i in 0 ..< init_count {
-			pos: components.Position = {
-				x = rand.float32_range(0, f32(rl.GetRenderWidth())),
-				y = rand.float32_range(0, f32(rl.GetRenderHeight())),
-			}
-			phys: components.Physic = {
-				mass = rand.float32_range(10, 50),
-			}
-			size: components.Size = {
-				width  = f32(g.textures[.SQUARE].width),
-				height = f32(g.textures[.SQUARE].height),
-			}
-			objects_add(
-				&g.positions,
-				pos,
-				&g.physics,
-				phys,
-				&g.sizes,
-				size,
-				&g.obj_texture,
-				.SQUARE,
-			)
+			objects_add_random(&g.ecs)
 		}
 	}
 
@@ -149,15 +131,11 @@ game_should_run :: proc() -> bool {
 
 @(export)
 game_shutdown :: proc() {
-	for &texture in g.textures {
+	for &texture in g.textureBank {
 		rl.UnloadTexture(texture)
 	}
 
-	delete(g.positions)
-	delete(g.physics)
-	delete(g.sizes)
-	delete(g.obj_texture)
-	delete(g.holeManager.holes)
+	delete_ecs(&g.ecs)
 
 	free(g)
 }
