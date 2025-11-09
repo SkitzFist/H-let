@@ -16,23 +16,50 @@ input :: proc() {
 	hole_input_size(&g.holeManager)
 }
 
-durr: f32 = 0.5
+durr: f32 = 0.1
 curr: f32 = 0.0
 update :: proc() {
 	dt := rl.GetFrameTime()
 
-	toRemove := make([dynamic]int, 0, context.temp_allocator)
+
+	toRemove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
 
 	for &hole, i in g.holeManager.holes {
+		if toRemove[i] {
+			continue
+		}
+
 		if hole_evaporate(&hole, &g.holeManager.stats, dt) {
-			append(&toRemove, i)
+			toRemove[i] = true
 		}
 		hole_attract_objects(&hole, &g.holeManager.stats, &g.positions, &g.physics, &g.sizes)
+
+		for &other, oi in g.holeManager.holes {
+			if i == oi || toRemove[oi] {
+				continue
+			}
+
+			if hole_attract_hole(&hole, &other) {
+				if hole.mass > other.mass {
+					toRemove[oi] = true
+					hole.mass += other.mass / 4
+					hole.size += other.size / 4
+				} else {
+					toRemove[i] = true
+					other.mass += hole.mass / 4
+					other.size += hole.size / 4
+				}
+			}
+		}
+
+		hole_apply_force(&hole, dt)
 	}
 
-	for i in toRemove {
-		unordered_remove(&g.holeManager.holes, i)
-		g.holeManager.current -= 1
+	#reverse for shouldRemove, i in toRemove {
+		if shouldRemove {
+			unordered_remove(&g.holeManager.holes, i)
+			g.holeManager.current -= 1
+		}
 	}
 
 	objects_apply_forces(&g.positions, &g.physics, dt)
@@ -75,8 +102,8 @@ draw :: proc() {
 
 	// Hole
 	for &hole in g.holeManager.holes {
-		rl.DrawCircle(hole.x, hole.y, hole.size, rl.BLACK)
-		rl.DrawCircleLines(hole.x, hole.y, hole.size * hole.reach_radius, rl.BLUE)
+		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size, rl.BLACK)
+		rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
 

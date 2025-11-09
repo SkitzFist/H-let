@@ -43,9 +43,11 @@ objects_remove :: #force_inline proc(
 	physics: ^#soa[dynamic]c.Physic,
 	sizes: ^#soa[dynamic]c.Size,
 ) {
-	unordered_remove_soa(positions, index)
-	unordered_remove_soa(physics, index)
-	unordered_remove_soa(sizes, index)
+	if index > 0 && index < len(positions) {
+		unordered_remove_soa(positions, index)
+		unordered_remove_soa(physics, index)
+		unordered_remove_soa(sizes, index)
+	}
 }
 
 objects_apply_forces :: proc(
