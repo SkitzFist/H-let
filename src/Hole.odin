@@ -1,8 +1,12 @@
 package game
 
-import c "components"
+import "core:crypto/hash"
 import "core:math"
+import "core:sync/chan"
+
 import rl "vendor:raylib"
+
+import c "components"
 
 HoleManager :: struct {
 	holes:   [dynamic]Hole,
@@ -17,17 +21,22 @@ HoleStats :: struct {
 }
 
 Hole :: struct {
-	x, y:         i32,
+	using pos:    c.Position,
 	size:         f32,
+	using phys:   c.Physic,
 	reach_radius: f32,
-	mass:         f32,
 }
 
 hole_create_default :: proc() -> Hole {
 	mousePos := rl.GetMousePosition()
 	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
 
-	return {x = i32(pos.x), y = i32(pos.y), size = 40, reach_radius = 4.0, mass = 100000.0}
+	return {x = pos.x, y = pos.y, size = 40, reach_radius = 4.0, mass = 100000.0}
+}
+
+hole_remove :: proc(manager: ^HoleManager, index: int) {
+	unordered_remove(&manager.holes, index)
+	manager.current -= 1
 }
 
 hole_input_size :: proc(manager: ^HoleManager) {
@@ -39,8 +48,11 @@ hole_input_size :: proc(manager: ^HoleManager) {
 }
 
 hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
-	sizeFactor := 1 / hole.size
-	hole.size -= stats.evaporationForce * dt * sizeFactor
+
+	hole.size -= ((1 / hole.size) * stats.evaporationForce * dt)
+
+	hole.mass -= ((1 / hole.mass) * stats.evaporationForce * dt)
+
 
 	if hole.size < 2.0 {
 		return true
@@ -49,7 +61,6 @@ hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
 	return false
 }
 
-
 hole_attract_objects :: proc(
 	hole: ^Hole,
 	stats: ^HoleStats,
@@ -57,11 +68,10 @@ hole_attract_objects :: proc(
 	physics: ^#soa[dynamic]c.Physic,
 	sizes: ^#soa[dynamic]c.Size,
 ) #no_bounds_check {
-	damp: f32 : 100.0
+	damp: f32 : 50.0
 
 
 	holeOuterRadius := hole.size * hole.reach_radius
-	size2 := hole.size * hole.size
 
 	px := positions.x
 	py := positions.y
@@ -81,7 +91,6 @@ hole_attract_objects :: proc(
 			continue
 		}
 
-
 		holeInnerRadius := hole.size - (sw[i] * 2)
 		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
 			append(&toRemove, i)
@@ -93,12 +102,8 @@ hole_attract_objects :: proc(
 
 		d2 := dx * dx + dy * dy
 
-		rx := dx * holeOuterRadius
-		ry := dy * holeOuterRadius
-
 		denom := d2 + damp
-		inv_denom := 1.0 / denom
-		strength := hole.mass * inv_denom
+		strength := hole.mass / denom
 
 
 		ax[i] += (dx * strength) / mass[i]
@@ -109,8 +114,8 @@ hole_attract_objects :: proc(
 	size_growth: f64 = 0.0
 	mass_growth: f64 = 0.0
 
-	for i in toRemove {
-		size_growth += f64(mass[i]) * stats.growth_rate
+	#reverse for i in toRemove {
+		size_growth += (f64(sw[i]) + f64(sh[i]) / 2.0) * stats.growth_rate
 		mass_growth += f64(mass[i])
 		//this should not be done from hole, hole should only report what indexes shoudl be removed
 		objects_remove(i, positions, physics, sizes)
@@ -120,4 +125,43 @@ hole_attract_objects :: proc(
 		hole.size += f32(size_growth)
 		hole.mass += f32(mass_growth)
 	}
+}
+
+hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
+	damp: f32 : 2.0
+	holeOuterRadius := hole.size * hole.reach_radius
+
+	if !intersects(hole.x, hole.y, holeOuterRadius, other.x, other.y, other.size) {
+		return false
+	}
+
+	if intersects(hole.x, hole.y, hole.size, other.x, other.y, other.size) {
+		return true
+	}
+
+
+	dx := hole.x - other.x
+	dy := hole.y - other.y
+
+	d := math.sqrt(dx * dx + dy * dy)
+
+	denom := d
+	strength := hole.mass / denom
+
+	other.ax += (dx * strength) / other.mass
+	other.ay += (dy * strength) / other.mass
+
+	return false
+}
+
+
+hole_apply_force :: proc(hole: ^Hole, dt: f32) {
+	hole.vx += hole.ax * dt
+	hole.vy += hole.ay * dt
+
+	hole.ax = 0
+	hole.ay = 0
+
+	hole.x += hole.vx * dt
+	hole.y += hole.vy * dt
 }

@@ -49,7 +49,7 @@ g: ^Game_Memory
 @(export)
 game_init_window :: proc() {
 	//rl.SetConfigFlags({.VSYNC_HINT})
-	monitor := rl.GetCurrentMonitor()
+	monitor: i32 = 0
 	width := rl.GetMonitorWidth(monitor)
 	height := rl.GetMonitorHeight(monitor)
 	rl.InitWindow(width, height, "Hålet")
