@@ -91,7 +91,7 @@ hole_attract_objects :: proc(
 			continue
 		}
 
-		holeInnerRadius := hole.size - (sw[i] * 2)
+		holeInnerRadius := hole.size
 		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
 			append(&toRemove, i)
 			continue
@@ -128,7 +128,7 @@ hole_attract_objects :: proc(
 }
 
 hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
-	damp: f32 : 2.0
+	damp :f32: 500.0
 	holeOuterRadius := hole.size * hole.reach_radius
 
 	if !intersects(hole.x, hole.y, holeOuterRadius, other.x, other.y, other.size) {
@@ -139,17 +139,16 @@ hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
 		return true
 	}
 
-
 	dx := hole.x - other.x
 	dy := hole.y - other.y
 
-	d := math.sqrt(dx * dx + dy * dy)
+	dist := dx * dx + dy * dy
 
-	denom := d
+	denom := dist + damp
 	strength := hole.mass / denom
 
-	other.ax += (dx * strength) / other.mass
-	other.ay += (dy * strength) / other.mass
+	other.ax += (dx * strength)
+	other.ay += (dy * strength)
 
 	return false
 }
