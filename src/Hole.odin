@@ -128,7 +128,7 @@ hole_attract_objects :: proc(
 }
 
 hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
-	damp :f32: 500.0
+	damp :f32: 1000.0
 	holeOuterRadius := hole.size * hole.reach_radius
 
 	if !intersects(hole.x, hole.y, holeOuterRadius, other.x, other.y, other.size) {
@@ -155,11 +155,17 @@ hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
 
 
 hole_apply_force :: proc(hole: ^Hole, dt: f32) {
+
+	lambda :f32: 0.5
+
 	hole.vx += hole.ax * dt
 	hole.vy += hole.ay * dt
 
 	hole.ax = 0
 	hole.ay = 0
+
+	hole.vx *= math.exp(-lambda * dt)
+	hole.vy *= math.exp(-lambda * dt)
 
 	hole.x += hole.vx * dt
 	hole.y += hole.vy * dt

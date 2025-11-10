@@ -67,12 +67,18 @@ objects_apply_forces :: proc(
 	ax := physics.ax
 	ay := physics.ay
 
+	lambda :f32= 1.0
+
 	for i in 0 ..< length {
 		vx[i] = intrinsics.fused_mul_add(ax[i], dt, vx[i])
 		vy[i] = intrinsics.fused_mul_add(ay[i], dt, vy[i])
-
+	
 		ax[i] = 0
 		ay[i] = 0
+
+		//apply friction
+		vx[i] *= math.exp(-lambda * dt)
+		vy[i] *= math.exp(-lambda * dt)
 
 		px[i] = intrinsics.fused_mul_add(vx[i], dt, px[i])
 		py[i] = intrinsics.fused_mul_add(vy[i], dt, py[i])
