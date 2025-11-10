@@ -67,7 +67,7 @@ objects_apply_forces :: proc(
 	ax := physics.ax
 	ay := physics.ay
 
-	lambda :f32= 1.0
+	lambda :f32: 1.0
 
 	for i in 0 ..< length {
 		vx[i] = intrinsics.fused_mul_add(ax[i], dt, vx[i])
