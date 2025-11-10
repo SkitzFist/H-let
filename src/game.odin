@@ -36,11 +36,11 @@ import rl "vendor:raylib"
 CAP :: 1000
 Game_Memory :: struct {
 	holeManager: HoleManager,
-	textures:    [Texture]rl.Texture2D,
+	textures:    [TextureType]rl.Texture2D,
 	positions:   #soa[dynamic]components.Position,
 	physics:     #soa[dynamic]components.Physic,
 	sizes:       #soa[dynamic]components.Size,
-	obj_texture: [dynamic]Texture,
+	obj_texture: [dynamic]TextureType,
 	run:         bool,
 }
 
@@ -70,12 +70,9 @@ game_init :: proc() {
 			holes = make([dynamic]Hole, 0, 10, context.allocator),
 			max = 5,
 			current = 0,
-			stats = {evaporationForce = 100, growth_rate = 0.005},
+			stats = {evaporationForce = 100, growth_rate = 0.5, max_size = 200},
 		},
-		textures = {
-			.SQUARE = create_texture(),
-			.BACKGROUND = rl.LoadTexture("assets/Grass_1.png"),
-		},
+		textures = create_texture_default(),
 	}
 
 
@@ -126,7 +123,8 @@ game_update :: proc() {
 	update()
 
 	rl.BeginDrawing()
-	rl.ClearBackground(rl.GRAY)
+	bgr_col: rl.Color = {10, 10, 10, 100}
+	rl.ClearBackground(bgr_col)
 	draw()
 	rl.EndDrawing()
 

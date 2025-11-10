@@ -1,12 +1,9 @@
 package game
 
-import "core:crypto/hash"
-import "core:math"
-import "core:sync/chan"
-
-import rl "vendor:raylib"
-
 import c "components"
+import "core:math"
+import rl "vendor:raylib"
+import "vendor:x11/xlib"
 
 //debug
 import "core:fmt"
@@ -21,6 +18,7 @@ HoleManager :: struct {
 HoleStats :: struct {
 	evaporationForce: f32,
 	growth_rate:      f64,
+	max_size:         f32,
 }
 
 Hole :: struct {
@@ -34,7 +32,7 @@ hole_create_default :: proc() -> Hole {
 	mousePos := rl.GetMousePosition()
 	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
 
-	return {x = pos.x, y = pos.y, size = 40, reach_radius = 4.0, mass = 100000.0}
+	return {x = pos.x, y = pos.y, size = 80, reach_radius = 4.0, mass = 100000.0}
 }
 
 hole_remove :: proc(manager: ^HoleManager, index: int) {
@@ -51,13 +49,11 @@ hole_input_size :: proc(manager: ^HoleManager) {
 }
 
 hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
-	lambda :f32: 0.33;
+	lambda: f32 : 0.33
 
-	p :f32= 5
-	s :f32= lambda + (1.0/hole.size) * p
-	m :f32= lambda + (1.0/hole.mass) * p
+	p: f32 = 5
+	s: f32 = lambda + (1.0 / hole.size) * p
 	hole.size *= math.exp(-s * dt)
-	hole.mass *= math.exp(-m * dt)
 
 	is_evaporated := false
 
@@ -99,7 +95,8 @@ hole_attract_objects :: proc(
 		}
 
 		holeInnerRadius := hole.size
-		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
+		objectRadius := (sw[i] + sh[i]) / 2.0
+		if intersects(f32(hole.x), f32(hole.y), objectRadius, px[i], py[i], sw[i], sh[i]) {
 			append(&toRemove, i)
 			continue
 		}
@@ -131,18 +128,21 @@ hole_attract_objects :: proc(
 	if mass_growth > 0 {
 		hole.size += f32(size_growth)
 		hole.mass += f32(mass_growth)
+
+		hole.size = math.min(hole.size, stats.max_size)
 	}
 }
 
 hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
-	damp :f32: 1000.0
+	damp: f32 : 1000.0
 	holeOuterRadius := hole.size * hole.reach_radius
 
 	if !intersects(hole.x, hole.y, holeOuterRadius, other.x, other.y, other.size) {
 		return false
 	}
 
-	if intersects(hole.x, hole.y, hole.size, other.x, other.y, other.size) {
+	eat_radius := math.min(hole.size, other.size) / 100
+	if intersects(hole.x, hole.y, eat_radius, other.x, other.y, eat_radius) {
 		return true
 	}
 
@@ -163,7 +163,7 @@ hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
 
 hole_apply_force :: proc(hole: ^Hole, dt: f32) {
 
-	lambda :f32: 0.5
+	lambda: f32 : 0.5
 
 	hole.vx += hole.ax * dt
 	hole.vy += hole.ay * dt
@@ -176,4 +176,26 @@ hole_apply_force :: proc(hole: ^Hole, dt: f32) {
 
 	hole.x += hole.vx * dt
 	hole.y += hole.vy * dt
+
+	if hole.x < 0 {
+		hole.x = 0
+		hole.vx *= -1
+	} else if hole.x > f32(rl.GetRenderWidth()) {
+		hole.x = f32(rl.GetRenderWidth())
+		hole.vx *= -1
+	}
+
+	if hole.y < 0 {
+		hole.y = 0
+		hole.vy *= -1
+	} else if hole.y > f32(rl.GetRenderHeight()) {
+		hole.y = f32(rl.GetRenderHeight())
+		hole.vy *= -1
+	}
+}
+
+hole_eat :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
+	hole.mass += other.mass / 4
+	hole.size += other.size / 4
+	hole.size = math.min(hole.size, stats.max_size)
 }

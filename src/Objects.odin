@@ -16,8 +16,8 @@ objects_add :: #force_inline proc(
 	physic: c.Physic,
 	sizes: ^#soa[dynamic]c.Size,
 	size: c.Size,
-	textures: ^[dynamic]Texture,
-	texture: Texture,
+	textures: ^[dynamic]TextureType,
+	texture: TextureType,
 ) {
 
 	n, err := append_soa(positions, position)
@@ -67,12 +67,12 @@ objects_apply_forces :: proc(
 	ax := physics.ax
 	ay := physics.ay
 
-	lambda :f32: 1.0
+	lambda: f32 : 1.0
 
 	for i in 0 ..< length {
 		vx[i] = intrinsics.fused_mul_add(ax[i], dt, vx[i])
 		vy[i] = intrinsics.fused_mul_add(ay[i], dt, vy[i])
-	
+
 		ax[i] = 0
 		ay[i] = 0
 
@@ -82,5 +82,21 @@ objects_apply_forces :: proc(
 
 		px[i] = intrinsics.fused_mul_add(vx[i], dt, px[i])
 		py[i] = intrinsics.fused_mul_add(vy[i], dt, py[i])
+
+		if px[i] < 0 {
+			px[i] = 0
+			vx[i] *= -1
+		} else if px[i] > f32(rl.GetRenderWidth()) {
+			px[i] = f32(rl.GetRenderWidth())
+			vx[i] *= -1
+		}
+
+		if py[i] < 0 {
+			py[i] = 0
+			vy[i] *= -1
+		} else if py[i] > f32(rl.GetRenderHeight()) {
+			py[i] = f32(rl.GetRenderHeight())
+			vy[i] *= -1
+		}
 	}
 }

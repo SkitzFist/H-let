@@ -40,14 +40,14 @@ update :: proc() {
 			}
 
 			if hole_attract_hole(&hole, &other) {
-				if hole.mass > other.mass {
+				if hole.size > other.size {
 					toRemove[oi] = true
-					hole.mass += other.mass / 4
-					hole.size += other.size / 4
+					hole_eat(&hole, &other, &g.holeManager.stats)
+
 				} else {
 					toRemove[i] = true
-					other.mass += hole.mass / 4
-					other.size += hole.size / 4
+					hole_eat(&other, &hole, &g.holeManager.stats)
+					continue
 				}
 			}
 		}
@@ -96,13 +96,25 @@ draw :: proc() {
 		f32(g.textures[.BACKGROUND].height),
 	}
 	dst: rl.Rectangle = {0, 0, f32(rl.GetRenderWidth()), f32(rl.GetRenderHeight())}
-	rl.DrawTexturePro(textures[.BACKGROUND], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
+
+	//rl.DrawTexturePro(textures[.BACKGROUND], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 
 	rl.BeginMode2D(game_camera())
 
+	rl.BeginBlendMode(.ADDITIVE)
 	// Hole
+	src = {0, 0, f32(g.textures[.GLOW_BOT].width), f32(g.textures[.GLOW_BOT].height)}
+	origin: rl.Vector2 = {
+		f32(g.textures[.GLOW_BOT].width) / 2,
+		f32(g.textures[.GLOW_BOT].height) / 2,
+	}
+
 	for &hole in g.holeManager.holes {
-		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size, rl.BLACK)
+		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size, {0, 0, 0, 180})
+		dst = {hole.x, hole.y, hole.size, hole.size}
+		origin = {hole.size / 2, hole.size / 2}
+		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, rl.WHITE)
+		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, rl.WHITE)
 		rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
@@ -115,13 +127,19 @@ draw :: proc() {
 	sw := sizes.width
 	sh := sizes.height
 
+	src = {0, 0, f32(g.textures[.GLOW_BOT].width), f32(g.textures[.GLOW_BOT].height)}
+
+	col: rl.Color = {255, 255, 180, 255}
+
 	for i in 0 ..< len(positions^) {
 		texture := g.obj_texture[i]
-
-		src = {0, 0, f32(g.textures[texture].width), f32(g.textures[texture].height)}
 		dst = {px[i], py[i], sw[i], sh[i]}
-		rl.DrawTexturePro(g.textures[texture], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
+		origin = {sw[i] / 2, sh[i] / 2}
+
+		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, rl.BLUE)
+		rl.DrawTexturePro(g.textures[.GLOW_TOP], src, dst, origin, 0.0, rl.WHITE)
 	}
+	rl.EndBlendMode()
 
 	rl.EndMode2D()
 
