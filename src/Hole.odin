@@ -8,6 +8,9 @@ import rl "vendor:raylib"
 
 import c "components"
 
+//debug
+import "core:fmt"
+
 HoleManager :: struct {
 	holes:   [dynamic]Hole,
 	stats:   HoleStats,
@@ -48,17 +51,21 @@ hole_input_size :: proc(manager: ^HoleManager) {
 }
 
 hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
+	lambda :f32: 0.33;
 
-	hole.size -= ((1 / hole.size) * stats.evaporationForce * dt)
+	p :f32= 5
+	s :f32= lambda + (1.0/hole.size) * p
+	m :f32= lambda + (1.0/hole.mass) * p
+	hole.size *= math.exp(-s * dt)
+	hole.mass *= math.exp(-m * dt)
 
-	hole.mass -= ((1 / hole.mass) * stats.evaporationForce * dt)
-
+	is_evaporated := false
 
 	if hole.size < 2.0 {
-		return true
+		is_evaporated = true
 	}
 
-	return false
+	return is_evaporated
 }
 
 hole_attract_objects :: proc(
