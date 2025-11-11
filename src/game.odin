@@ -28,7 +28,6 @@ created.
 package game
 
 import "components"
-import "core:math/rand"
 import "core:mem"
 import rl "vendor:raylib"
 
@@ -36,10 +35,8 @@ import rl "vendor:raylib"
 CAP :: 10000
 Game_Memory :: struct {
 	holeManager: HoleManager,
+	objects:     Objects,
 	textures:    [TextureType]rl.Texture2D,
-	positions:   #soa[dynamic]components.Position,
-	physics:     #soa[dynamic]components.Physic,
-	sizes:       #soa[dynamic]components.Size,
 	run:         bool,
 }
 
@@ -62,9 +59,11 @@ game_init :: proc() {
 
 	g^ = Game_Memory {
 		run = true,
-		positions = make(#soa[dynamic]components.Position, 0, CAP, context.allocator),
-		physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
-		sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
+		objects = {
+			positions = make(#soa[dynamic]components.Position, 0, CAP, context.allocator),
+			physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
+			sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
+		},
 		holeManager = {
 			holes = make([dynamic]Hole, 0, 1000, context.allocator),
 			max = 20,
@@ -75,7 +74,7 @@ game_init :: proc() {
 	}
 
 
-	if len(g.positions) == 0 {
+	if len(g.objects.positions) == 0 {
 		init_holes := 0
 		init_obj := CAP / 2
 
@@ -138,9 +137,7 @@ game_shutdown :: proc() {
 		rl.UnloadTexture(texture)
 	}
 
-	delete(g.positions)
-	delete(g.physics)
-	delete(g.sizes)
+	objects_delete(&g.objects)
 	delete(g.holeManager.holes)
 
 	free(g)
