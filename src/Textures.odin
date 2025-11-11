@@ -15,7 +15,7 @@ create_texture_default :: proc() -> [TextureType]rl.Texture2D {
 		.SQUARE = create_square(),
 		.BACKGROUND = rl.LoadTexture("assets/warp.png"),
 		.GLOW_BOT = MakeRadialGlowTex(256, 0.1, 1.0),
-		.GLOW_TOP = MakeRadialGlowTex(256, 0.05, 0.2),
+		.GLOW_TOP = MakeRadialGlowTex(256, 0.05, 0.8),
 	}
 }
 
