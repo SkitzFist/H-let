@@ -40,7 +40,6 @@ Game_Memory :: struct {
 	positions:   #soa[dynamic]components.Position,
 	physics:     #soa[dynamic]components.Physic,
 	sizes:       #soa[dynamic]components.Size,
-	obj_texture: [dynamic]TextureType,
 	run:         bool,
 }
 
@@ -142,7 +141,6 @@ game_shutdown :: proc() {
 	delete(g.positions)
 	delete(g.physics)
 	delete(g.sizes)
-	delete(g.obj_texture)
 	delete(g.holeManager.holes)
 
 	free(g)
