@@ -1,16 +1,29 @@
 package game
 
 import "base:intrinsics"
-import c "components"
 import "core:math"
 import "core:math/rand"
 import rl "vendor:raylib"
 
+import c "components"
+
+Objects :: struct {
+	positions: #soa[dynamic]c.Position,
+	physics:   #soa[dynamic]c.Physic,
+	sizes:     #soa[dynamic]c.Size,
+}
+
+objects_delete :: proc(objects: ^Objects) {
+	delete(objects.physics)
+	delete(objects.positions)
+	delete(objects.sizes)
+}
 
 objects_add_random :: #force_inline proc() {
-	positions := &g.positions
-	physics := &g.physics
-	sizes := &g.sizes
+
+	positions := &g.objects.positions
+	physics := &g.objects.physics
+	sizes := &g.objects.sizes
 
 	pos: c.Position = {
 		x = rand.float32_range(0, f32(rl.GetRenderWidth())),

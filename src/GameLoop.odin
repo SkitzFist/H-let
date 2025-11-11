@@ -1,5 +1,6 @@
 package game
 import "core:fmt"
+import "core:math"
 import "core:math/rand"
 import "core:time"
 
@@ -21,18 +22,26 @@ curr: f32 = 0.0
 update :: proc() {
 	dt := rl.GetFrameTime()
 
+	holeManager := &g.holeManager
+	objects := &g.objects
 
 	toRemove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
 
-	for &hole, i in g.holeManager.holes {
+	for &hole, i in holeManager.holes {
 		if toRemove[i] {
 			continue
 		}
 
-		if hole_evaporate(&hole, &g.holeManager.stats, dt) {
+		if hole_evaporate(&hole, &holeManager.stats, dt) {
 			toRemove[i] = true
 		}
-		hole_attract_objects(&hole, &g.holeManager.stats, &g.positions, &g.physics, &g.sizes)
+		hole_attract_objects(
+			&hole,
+			&holeManager.stats,
+			&objects.positions,
+			&objects.physics,
+			&objects.sizes,
+		)
 
 		for &other, oi in g.holeManager.holes {
 			if i == oi || toRemove[oi] {
@@ -62,7 +71,7 @@ update :: proc() {
 		}
 	}
 
-	objects_apply_forces(&g.positions, &g.physics, dt)
+	objects_apply_forces(&objects.positions, &objects.physics, dt)
 
 	curr += dt
 
@@ -74,6 +83,7 @@ update :: proc() {
 
 draw :: proc() {
 	textures := &g.textures
+	objects := &g.objects
 
 	// BGR
 	src: rl.Rectangle = {
@@ -87,13 +97,15 @@ draw :: proc() {
 
 	rl.BeginMode2D(game_camera())
 
-	rl.BeginBlendMode(.ADDITIVE)
 
 	// Hole
 	src = {0, 0, f32(g.textures[.GLOW_BOT].width), f32(g.textures[.GLOW_BOT].height)}
-	origin: rl.Vector2 = {
-		f32(g.textures[.GLOW_BOT].width) / 2,
-		f32(g.textures[.GLOW_BOT].height) / 2,
+	origin: rl.Vector2
+
+	almost_black: rl.Color = {10, 10, 10, 255}
+	for &hole in g.holeManager.holes {
+		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size * 0.2, rl.BLACK)
+		//rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
 	for &hole in g.holeManager.holes {
@@ -103,22 +115,24 @@ draw :: proc() {
 		lowest: f32 = 10
 		col_val: u8 = u8(lowest + f32(255 - lowest) * intensity)
 		col: rl.Color = {col_val, col_val, col_val, 255}
-		rl.DrawCircle(i32(dst.x), i32(dst.y), hole.size / 2, rl.BLACK)
+
+		rl.BeginBlendMode(rl.BlendMode.ADDITIVE)
 		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, col)
-		rl.DrawTexturePro(g.textures[.GLOW_TOP], src, dst, origin, 0.0, rl.BLACK)
+		rl.DrawTexturePro(g.textures[.GLOW_TOP], src, dst, origin, 0.0, col)
+		rl.EndBlendMode()
 		//rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
 	// objects
-	positions := &g.positions
-	sizes := &g.sizes
+	positions := &objects.positions
+	sizes := &objects.sizes
 	px := positions.x
 	py := positions.y
 	sw := sizes.width
 	sh := sizes.height
 
 	src = {0, 0, f32(g.textures[.GLOW_BOT].width), f32(g.textures[.GLOW_BOT].height)}
-
+	rl.BeginBlendMode(.ADDITIVE)
 	for i in 0 ..< len(positions^) {
 		dst = {px[i], py[i], sw[i] * 2, sh[i] * 2}
 		origin = {dst.width / 2, dst.height / 2}

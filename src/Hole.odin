@@ -132,7 +132,6 @@ hole_attract_objects :: proc(
 	#reverse for i in toRemove {
 		size_growth += (f64(sw[i]) + f64(sh[i]) / 2.0) * stats.growth_rate
 		mass_growth += f64(mass[i])
-		//this should not be done from hole, hole should only report what indexes shoudl be removed
 		objects_remove(i, positions, physics, sizes)
 	}
 
@@ -165,10 +164,8 @@ hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
 	denom := dist + damp
 	strength := hole.mass / denom
 
-	mass_factor: f32 = 0.00001
-	other.ax += (dx * strength) / (other.mass * mass_factor)
-	other.ay += (dy * strength) / (other.mass * mass_factor)
-
+	other.ax += (dx * strength)
+	other.ay += (dy * strength)
 	return false
 }
 
