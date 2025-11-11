@@ -67,20 +67,7 @@ update :: proc() {
 	curr += dt
 
 	if curr >= durr {
-		//create an object:
-		pos: components.Position = {
-			x = rand.float32_range(0, f32(rl.GetRenderWidth())),
-			y = rand.float32_range(0, f32(rl.GetRenderHeight())),
-		}
-		phys: components.Physic = {
-			mass = rand.float32_range(10, 50),
-		}
-		size: components.Size = {
-			width  = f32(g.textures[.SQUARE].width),
-			height = f32(g.textures[.SQUARE].height),
-		}
-		objects_add(&g.positions, pos, &g.physics, phys, &g.sizes, size, &g.obj_texture, .SQUARE)
-
+		objects_add_random()
 		curr = 0
 	}
 }
@@ -96,12 +83,12 @@ draw :: proc() {
 		f32(g.textures[.BACKGROUND].height),
 	}
 	dst: rl.Rectangle = {0, 0, f32(rl.GetRenderWidth()), f32(rl.GetRenderHeight())}
-
 	rl.DrawTexturePro(textures[.BACKGROUND], src, dst, rl.Vector2{0, 0}, 0.0, rl.WHITE)
 
 	rl.BeginMode2D(game_camera())
 
 	rl.BeginBlendMode(.ADDITIVE)
+
 	// Hole
 	src = {0, 0, f32(g.textures[.GLOW_BOT].width), f32(g.textures[.GLOW_BOT].height)}
 	origin: rl.Vector2 = {
@@ -110,14 +97,17 @@ draw :: proc() {
 	}
 
 	for &hole in g.holeManager.holes {
-		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size, {0, 0, 0, 180})
-		dst = {hole.x, hole.y, hole.size, hole.size}
-		origin = {hole.size / 2, hole.size / 2}
-		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, rl.WHITE)
-		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, rl.WHITE)
-		rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
+		dst = {hole.x, hole.y, hole.size * 2, hole.size * 2}
+		origin = {dst.width / 2, dst.height / 2}
+		intensity := hole.size / g.holeManager.stats.max_size
+		lowest: f32 = 10
+		col_val: u8 = u8(lowest + f32(255 - lowest) * intensity)
+		col: rl.Color = {col_val, col_val, col_val, 255}
+		rl.DrawCircle(i32(dst.x), i32(dst.y), hole.size / 2, rl.BLACK)
+		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, col)
+		rl.DrawTexturePro(g.textures[.GLOW_TOP], src, dst, origin, 0.0, rl.BLACK)
+		//rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
-
 
 	// objects
 	positions := &g.positions
@@ -129,12 +119,9 @@ draw :: proc() {
 
 	src = {0, 0, f32(g.textures[.GLOW_BOT].width), f32(g.textures[.GLOW_BOT].height)}
 
-	col: rl.Color = {255, 255, 180, 255}
-
 	for i in 0 ..< len(positions^) {
-		texture := g.obj_texture[i]
-		dst = {px[i], py[i], sw[i], sh[i]}
-		origin = {sw[i] / 2, sh[i] / 2}
+		dst = {px[i], py[i], sw[i] * 2, sh[i] * 2}
+		origin = {dst.width / 2, dst.height / 2}
 
 		rl.DrawTexturePro(g.textures[.GLOW_BOT], src, dst, origin, 0.0, rl.BLUE)
 		rl.DrawTexturePro(g.textures[.GLOW_TOP], src, dst, origin, 0.0, rl.WHITE)

@@ -3,26 +3,33 @@ package game
 import "base:intrinsics"
 import c "components"
 import "core:math"
+import "core:math/rand"
 import rl "vendor:raylib"
 
-//debug
-import "core:fmt"
 
+objects_add_random :: #force_inline proc() {
+	positions := &g.positions
+	physics := &g.physics
+	sizes := &g.sizes
 
-objects_add :: #force_inline proc(
-	positions: ^#soa[dynamic]c.Position,
-	position: c.Position,
-	physics: ^#soa[dynamic]c.Physic,
-	physic: c.Physic,
-	sizes: ^#soa[dynamic]c.Size,
-	size: c.Size,
-	textures: ^[dynamic]TextureType,
-	texture: TextureType,
-) {
+	pos: c.Position = {
+		x = rand.float32_range(0, f32(rl.GetRenderWidth())),
+		y = rand.float32_range(0, f32(rl.GetRenderHeight())),
+	}
+	factor := rand.float32_range(1, 5)
 
-	n, err := append_soa(positions, position)
+	phys: c.Physic = {
+		mass = 10 * factor,
+	}
 
-	n1, err1 := append_soa(physics, physic)
+	size: c.Size = {
+		width  = 1 * factor,
+		height = 1 * factor,
+	}
+
+	n, err := append_soa(positions, pos)
+
+	n1, err1 := append_soa(physics, phys)
 	if n != n1 {
 		panic(
 			"[Objects]objects_add: {Physics} indexes does not match up, entities are out of sync!",
@@ -33,8 +40,6 @@ objects_add :: #force_inline proc(
 	if n != n1 {
 		panic("[Objects]objects_add: {Sizes} indexes does not match up, entities are out of sync!")
 	}
-
-	append(textures, texture)
 }
 
 objects_remove :: #force_inline proc(

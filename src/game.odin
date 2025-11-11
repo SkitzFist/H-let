@@ -33,7 +33,7 @@ import "core:mem"
 import rl "vendor:raylib"
 
 
-CAP :: 1000
+CAP :: 10000
 Game_Memory :: struct {
 	holeManager: HoleManager,
 	textures:    [TextureType]rl.Texture2D,
@@ -67,39 +67,27 @@ game_init :: proc() {
 		physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
 		sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
 		holeManager = {
-			holes = make([dynamic]Hole, 0, 10, context.allocator),
-			max = 5,
+			holes = make([dynamic]Hole, 0, 1000, context.allocator),
+			max = 20,
 			current = 0,
-			stats = {evaporationForce = 100, growth_rate = 0.5, max_size = 200},
+			stats = {evaporationForce = 100, growth_rate = 0.25, max_size = 200},
 		},
 		textures = create_texture_default(),
 	}
 
 
 	if len(g.positions) == 0 {
-		init_count := CAP
-		for i in 0 ..< init_count {
-			pos: components.Position = {
-				x = rand.float32_range(0, f32(rl.GetRenderWidth())),
-				y = rand.float32_range(0, f32(rl.GetRenderHeight())),
-			}
-			phys: components.Physic = {
-				mass = rand.float32_range(10, 50),
-			}
-			size: components.Size = {
-				width  = f32(g.textures[.SQUARE].width),
-				height = f32(g.textures[.SQUARE].height),
-			}
-			objects_add(
-				&g.positions,
-				pos,
-				&g.physics,
-				phys,
-				&g.sizes,
-				size,
-				&g.obj_texture,
-				.SQUARE,
-			)
+		init_holes := 0
+		init_obj := CAP / 2
+
+		for i in 0 ..< init_holes {
+			//objects_add_random(&g.positions, &g.physics, &g.sizes)
+			append(&g.holeManager.holes, hole_create_random())
+		}
+
+
+		for j in 0 ..< init_obj {
+			objects_add_random()
 		}
 	}
 

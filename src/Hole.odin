@@ -1,10 +1,10 @@
 package game
 
+import "base:intrinsics"
 import c "components"
 import "core:math"
+import "core:math/rand"
 import rl "vendor:raylib"
-import "vendor:x11/xlib"
-
 //debug
 import "core:fmt"
 
@@ -33,6 +33,18 @@ hole_create_default :: proc() -> Hole {
 	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
 
 	return {x = pos.x, y = pos.y, size = 80, reach_radius = 4.0, mass = 100000.0}
+}
+
+hole_create_random :: proc() -> Hole {
+	factor := rand.float32_range(1, 10)
+
+	return {
+		x = rand.float32_range(0, f32(rl.GetRenderWidth())),
+		y = rand.float32_range(0, f32(rl.GetRenderHeight())),
+		size = 10 * factor,
+		reach_radius = 4.0,
+		mass = 10000.0 * factor,
+	}
 }
 
 hole_remove :: proc(manager: ^HoleManager, index: int) {
@@ -94,9 +106,8 @@ hole_attract_objects :: proc(
 			continue
 		}
 
-		holeInnerRadius := hole.size
-		objectRadius := (sw[i] + sh[i]) / 2.0
-		if intersects(f32(hole.x), f32(hole.y), objectRadius, px[i], py[i], sw[i], sh[i]) {
+		holeInnerRadius := hole.size / 2
+		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
 			append(&toRemove, i)
 			continue
 		}
@@ -154,8 +165,9 @@ hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
 	denom := dist + damp
 	strength := hole.mass / denom
 
-	other.ax += (dx * strength)
-	other.ay += (dy * strength)
+	mass_factor: f32 = 0.00001
+	other.ax += (dx * strength) / (other.mass * mass_factor)
+	other.ay += (dy * strength) / (other.mass * mass_factor)
 
 	return false
 }
