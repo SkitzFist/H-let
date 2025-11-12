@@ -1,12 +1,10 @@
 package game
 
-import "base:intrinsics"
 import c "components"
 import "core:math"
 import "core:math/rand"
 import rl "vendor:raylib"
-//debug
-import "core:fmt"
+
 
 HoleManager :: struct {
 	holes:   [dynamic]Hole,
@@ -82,6 +80,7 @@ hole_attract_objects :: proc(
 	positions: ^#soa[dynamic]c.Position,
 	physics: ^#soa[dynamic]c.Physic,
 	sizes: ^#soa[dynamic]c.Size,
+	toRemove: ^[dynamic]int,
 ) #no_bounds_check {
 	damp: f32 : 50.0
 
@@ -97,9 +96,6 @@ hole_attract_objects :: proc(
 	mass := physics.mass
 
 	length := len(positions^)
-
-	toRemove := make([dynamic]int, 0, context.temp_allocator)
-
 	for i in 0 ..< length {
 
 		if !intersects(f32(hole.x), f32(hole.y), holeOuterRadius, px[i], py[i], sw[i], sh[i]) {
@@ -108,7 +104,7 @@ hole_attract_objects :: proc(
 
 		holeInnerRadius := hole.size / 2
 		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
-			append(&toRemove, i)
+			append(toRemove, i)
 			continue
 		}
 
@@ -129,16 +125,14 @@ hole_attract_objects :: proc(
 	size_growth: f64 = 0.0
 	mass_growth: f64 = 0.0
 
-	#reverse for i in toRemove {
+	for i in toRemove {
 		size_growth += (f64(sw[i]) + f64(sh[i]) / 2.0) * stats.growth_rate
 		mass_growth += f64(mass[i])
-		objects_remove(i, positions, physics, sizes)
 	}
 
 	if mass_growth > 0 {
 		hole.size += f32(size_growth)
 		hole.mass += f32(mass_growth)
-
 		hole.size = math.min(hole.size, stats.max_size)
 	}
 }

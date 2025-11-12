@@ -29,13 +29,14 @@ package game
 
 import "components"
 import "core:mem"
+import "core:time"
 import rl "vendor:raylib"
-
 
 CAP :: 10000
 Game_Memory :: struct {
 	holeManager: HoleManager,
 	objects:     Objects,
+	resources:   Resources,
 	textures:    [TextureType]rl.Texture2D,
 	run:         bool,
 }
@@ -79,7 +80,6 @@ game_init :: proc() {
 		init_obj := CAP / 2
 
 		for i in 0 ..< init_holes {
-			//objects_add_random(&g.positions, &g.physics, &g.sizes)
 			append(&g.holeManager.holes, hole_create_random())
 		}
 
@@ -103,19 +103,50 @@ ui_camera :: proc() -> rl.Camera2D {
 	return {zoom = 1.0}
 }
 
+
+update_times, input_times, render_times: [100]time.Duration
+update_time, input_time, render_time: f64
+
+
+frames: i64
+
 @(export)
 game_update :: proc() {
+	dt := rl.GetFrameTime()
+	frames += 1
+
+	start := time.now()
 	input()
-	update()
+	input_times[frames % 100] = time.diff(start, time.now())
+	input_time = calc_average_ms(input_times[:])
+
+	start = time.now()
+	update(dt)
+	update_times[frames % 100] = time.diff(start, time.now())
+	update_time = calc_average_ms(update_times[:])
 
 	rl.BeginDrawing()
 	bgr_col: rl.Color = {10, 10, 10, 100}
 	rl.ClearBackground(bgr_col)
+	start = time.now()
 	draw()
+	render_times[frames % 100] = time.diff(start, time.now())
+	render_time = calc_average_ms(render_times[:])
 	rl.EndDrawing()
 
 	// Everything on tracking allocator is valid until end-of-frame.
 	free_all(context.temp_allocator)
+}
+
+calc_average_ms :: proc(times: []time.Duration) -> f64 {
+
+	sum: f64
+
+	for time in times {
+		sum += f64(time)
+	}
+
+	return (sum / f64(len(times))) / 1_000_000
 }
 
 
