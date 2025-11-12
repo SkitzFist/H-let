@@ -8,15 +8,17 @@ import rl "vendor:raylib"
 import c "components"
 
 Objects :: struct {
-	positions: #soa[dynamic]c.Position,
-	physics:   #soa[dynamic]c.Physic,
-	sizes:     #soa[dynamic]c.Size,
+	positions:      #soa[dynamic]c.Position,
+	physics:        #soa[dynamic]c.Physic,
+	sizes:          #soa[dynamic]c.Size,
+	resource_gains: #soa[dynamic]ResourceGain,
 }
 
 objects_delete :: proc(objects: ^Objects) {
 	delete(objects.physics)
 	delete(objects.positions)
 	delete(objects.sizes)
+	delete(objects.resource_gains)
 }
 
 objects_add_random :: #force_inline proc() {
@@ -24,6 +26,7 @@ objects_add_random :: #force_inline proc() {
 	positions := &g.objects.positions
 	physics := &g.objects.physics
 	sizes := &g.objects.sizes
+	resource_gains := &g.objects.resource_gains
 
 	pos: c.Position = {
 		x = rand.float32_range(0, f32(rl.GetRenderWidth())),
@@ -40,32 +43,23 @@ objects_add_random :: #force_inline proc() {
 		height = 1 * factor,
 	}
 
-	n, err := append_soa(positions, pos)
-
-	n1, err1 := append_soa(physics, phys)
-	if n != n1 {
-		panic(
-			"[Objects]objects_add: {Physics} indexes does not match up, entities are out of sync!",
-		)
+	resource_gain: ResourceGain = {
+		type  = .DUST,
+		value = 1,
 	}
 
-	n1, err1 = append_soa(sizes, size)
-	if n != n1 {
-		panic("[Objects]objects_add: {Sizes} indexes does not match up, entities are out of sync!")
-	}
+	append_soa(positions, pos)
+	append_soa(physics, phys)
+	append_soa(sizes, size)
+	append_soa(resource_gains, resource_gain)
 }
 
-objects_remove :: #force_inline proc(
-	index: int,
-	positions: ^#soa[dynamic]c.Position,
-	physics: ^#soa[dynamic]c.Physic,
-	sizes: ^#soa[dynamic]c.Size,
-) {
-	if index > 0 && index < len(positions) {
-		unordered_remove_soa(positions, index)
-		unordered_remove_soa(physics, index)
-		unordered_remove_soa(sizes, index)
-	}
+objects_remove :: #force_inline proc(index: int) {
+	obj := &g.objects
+	unordered_remove_soa(&obj.positions, index)
+	unordered_remove_soa(&obj.physics, index)
+	unordered_remove_soa(&obj.sizes, index)
+	unordered_remove_soa(&obj.resource_gains, index)
 }
 
 objects_apply_forces :: proc(
