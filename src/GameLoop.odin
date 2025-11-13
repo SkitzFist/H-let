@@ -15,6 +15,12 @@ input :: proc() {
 	}
 
 	hole_input_size(&g.holeManager)
+
+	if rl.IsKeyPressed(rl.KeyboardKey.PERIOD) {
+		for i in 0 ..< 10_000 {
+			objects_add_random()
+		}
+	}
 }
 
 durr: f32 = 0.1
