@@ -5,18 +5,23 @@ import "core:math"
 import "core:math/rand"
 import rl "vendor:raylib"
 
+//debug
+import "core:fmt"
+
 
 HoleManager :: struct {
-	holes:   [dynamic]Hole,
-	stats:   HoleStats,
-	max:     int,
-	current: int,
+	holes: [dynamic]Hole,
+	stats: HoleStats,
+	max:   int,
+	used:  int,
 }
 
 HoleStats :: struct {
-	evaporationForce: f32,
+	evaporation_rate: f32,
 	growth_rate:      f64,
+	start_size:       f32,
 	max_size:         f32,
+	reach_radius:     f32,
 }
 
 Hole :: struct {
@@ -26,44 +31,54 @@ Hole :: struct {
 	reach_radius: f32,
 }
 
+hole_manager_create_default :: proc() -> HoleManager {
+	return {
+		holes = make([dynamic]Hole, 0, 1000, context.allocator),
+		max = 1,
+		stats = hole_stats_create_default(),
+	}
+}
+
+hole_stats_create_default :: proc() -> HoleStats {
+	return {
+		evaporation_rate = 0.33,
+		growth_rate = 0.25,
+		start_size = 20,
+		max_size = 1000,
+		reach_radius = 2,
+	}
+}
+
 hole_create_default :: proc() -> Hole {
 	mousePos := rl.GetMousePosition()
 	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
-
-	return {x = pos.x, y = pos.y, size = 80, reach_radius = 4.0, mass = 100000.0}
-}
-
-hole_create_random :: proc() -> Hole {
-	factor := rand.float32_range(1, 10)
-
-	return {
-		x = rand.float32_range(0, f32(rl.GetRenderWidth())),
-		y = rand.float32_range(0, f32(rl.GetRenderHeight())),
-		size = 10 * factor,
-		reach_radius = 4.0,
-		mass = 10000.0 * factor,
-	}
+	stats := &g.holeManager.stats
+	skills := &g.skills
+	start_size := stats.start_size * skills.float[.HOLE_START_SIZE]
+	reach_radius := stats.reach_radius * skills.float[.HOLE_REACH_RADIUS]
+	return {x = pos.x, y = pos.y, size = start_size, reach_radius = reach_radius, mass = 100000.0}
 }
 
 hole_remove :: proc(manager: ^HoleManager, index: int) {
 	unordered_remove(&manager.holes, index)
-	manager.current -= 1
 }
 
 hole_input_size :: proc(manager: ^HoleManager) {
-	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) && manager.current < manager.max {
+	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) && manager.used < manager.max {
 		append(&manager.holes, hole_create_default())
-		manager.current += 1
+		manager.used += 1
 	}
 
 }
 
 hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
-	lambda: f32 : 0.33
+	lambda: f32 = stats.evaporation_rate * g.skills.float[.HOLE_EVAPORATION_RATE]
 
-	p: f32 = 5
+	p: f32 = 10
 	s: f32 = lambda + (1.0 / hole.size) * p
-	hole.size *= math.exp(-s * dt)
+	change := math.exp(-s * dt)
+
+	hole.size *= change
 
 	is_evaporated := false
 
@@ -82,7 +97,7 @@ hole_attract_objects :: proc(
 	sizes: ^#soa[dynamic]c.Size,
 	toRemove: ^[dynamic]int,
 ) #no_bounds_check {
-	damp: f32 : 50.0
+	damp: f32 : 100.0
 
 
 	holeOuterRadius := hole.size * hole.reach_radius
@@ -96,6 +111,11 @@ hole_attract_objects :: proc(
 	mass := physics.mass
 
 	length := len(positions^)
+
+	skills := &g.skills
+	growth_rate := stats.growth_rate * f64(skills.float[.HOLE_GROWTH_RATE])
+	max_size := stats.max_size * skills.float[.HOLE_MAX_SIZE]
+
 	for i in 0 ..< length {
 
 		if !intersects(f32(hole.x), f32(hole.y), holeOuterRadius, px[i], py[i], sw[i], sh[i]) {
@@ -126,14 +146,15 @@ hole_attract_objects :: proc(
 	mass_growth: f64 = 0.0
 
 	for i in toRemove {
-		size_growth += (f64(sw[i]) + f64(sh[i]) / 2.0) * stats.growth_rate
+		size_growth += ((f64(sw[i]) + f64(sh[i])) / 2.0) * growth_rate
 		mass_growth += f64(mass[i])
 	}
 
 	if mass_growth > 0 {
-		hole.size += f32(size_growth)
+		max_growth_per_frame := hole.size * 0.05
+		hole.size += math.min(max_growth_per_frame, f32(size_growth))
 		hole.mass += f32(mass_growth)
-		hole.size = math.min(hole.size, stats.max_size)
+		hole.size = math.min(hole.size, max_size)
 	}
 }
 
@@ -197,8 +218,9 @@ hole_apply_force :: proc(hole: ^Hole, dt: f32) {
 	}
 }
 
-hole_eat :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
-	hole.mass += other.mass / 4
-	hole.size += other.size / 4
-	hole.size = math.min(hole.size, stats.max_size)
+hole_eat_hole :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
+	hole.mass += other.mass / 2
+	hole.size += other.size / 2
+	max_size := stats.max_size * g.skills.float[.HOLE_MAX_SIZE]
+	hole.size = math.min(hole.size, max_size)
 }

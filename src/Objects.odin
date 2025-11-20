@@ -14,6 +14,15 @@ Objects :: struct {
 	resource_gains: #soa[dynamic]ResourceGain,
 }
 
+ObjectStats :: struct {
+	spawn_rate: f32,
+}
+
+
+object_stats_create_default :: proc() -> ObjectStats {
+	return {spawn_rate = 0.5}
+}
+
 objects_delete :: proc(objects: ^Objects) {
 	delete(objects.physics)
 	delete(objects.positions)
@@ -32,6 +41,49 @@ objects_add_random :: #force_inline proc() {
 		x = rand.float32_range(0, f32(rl.GetRenderWidth())),
 		y = rand.float32_range(0, f32(rl.GetRenderHeight())),
 	}
+	factor := rand.float32_range(1, 5)
+
+	phys: c.Physic = {
+		mass = 10 * factor,
+	}
+
+	size: c.Size = {
+		width  = 1 * factor,
+		height = 1 * factor,
+	}
+
+	resource_gain: ResourceGain = {
+		type  = .DUST,
+		value = 1,
+	}
+
+	append_soa(positions, pos)
+	append_soa(physics, phys)
+	append_soa(sizes, size)
+	append_soa(resource_gains, resource_gain)
+}
+
+objects_add_random_mid :: proc(sizeFactor: f32) {
+	positions := &g.objects.positions
+	physics := &g.objects.physics
+	sizes := &g.objects.sizes
+	resource_gains := &g.objects.resource_gains
+
+	width := f32(rl.GetRenderWidth()) * sizeFactor
+	height := f32(rl.GetRenderHeight()) * sizeFactor
+
+	rect: rl.Rectangle = {
+		x      = (f32(rl.GetRenderWidth()) / 2) - (width / 2),
+		y      = (f32(rl.GetRenderHeight()) / 2) - (height / 2),
+		width  = width,
+		height = height,
+	}
+
+	pos: c.Position = {
+		x = rand.float32_range(rect.x, rect.x + rect.width),
+		y = rand.float32_range(rect.y, rect.y + rect.height),
+	}
+
 	factor := rand.float32_range(1, 5)
 
 	phys: c.Physic = {

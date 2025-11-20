@@ -1,14 +1,30 @@
 package game
 import "core:fmt"
 import "core:math"
-import "core:math/rand"
-import "core:time"
+import "core:math/noise"
 
 import rl "vendor:raylib"
 
 import "components"
 
-input :: proc() {
+gameloop_on_enter :: proc() {
+	g.holeManager.used = 0
+	g.holeManager.max = g.skills.int[.HOLE_MAX_HOLE_COUNT]
+
+	for i in 0 ..< g.skills.int[.OBJECT_INITIAL_AMOUNT] {
+		objects_add_random_mid(0.15)
+		objects_add_random()
+	}
+}
+
+game_loop_on_exit :: proc() {
+	clear(&g.objects.physics)
+	clear(&g.objects.positions)
+	clear(&g.objects.resource_gains)
+	clear(&g.objects.sizes)
+}
+
+gameloop_input :: proc() {
 	if rl.IsKeyPressed(.ESCAPE) {
 		g.run = false
 		return
@@ -23,21 +39,28 @@ input :: proc() {
 	}
 }
 
-durr: f32 = 0.1
 curr: f32 = 0.0
-update :: proc(dt: f32) {
+gameloop_update :: proc(dt: f32) {
 	holeManager := &g.holeManager
 	objects := &g.objects
+	obj_stats := &g.objectStats
+	skills := &g.skills
 
-	toRemove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
+	if holeManager.used == holeManager.max && len(holeManager.holes) == 0 {
+		switch_scene(.SKILL_TREE)
+		return
+	}
+
+
+	hole_to_remove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
 	obj_to_remove := make([dynamic]int, 0, context.temp_allocator)
 	for &hole, i in holeManager.holes {
-		if toRemove[i] {
+		if hole_to_remove[i] {
 			continue
 		}
 
 		if hole_evaporate(&hole, &holeManager.stats, dt) {
-			toRemove[i] = true
+			hole_to_remove[i] = true
 		}
 
 		hole_attract_objects(
@@ -62,18 +85,18 @@ update :: proc(dt: f32) {
 		clear_dynamic_array(&obj_to_remove)
 
 		for &other, oi in g.holeManager.holes {
-			if i == oi || toRemove[oi] {
+			if i == oi || hole_to_remove[oi] {
 				continue
 			}
 
 			if hole_attract_hole(&hole, &other) {
 				if hole.size > other.size {
-					toRemove[oi] = true
-					hole_eat(&hole, &other, &g.holeManager.stats)
+					hole_to_remove[oi] = true
+					hole_eat_hole(&hole, &other, &g.holeManager.stats)
 
 				} else {
-					toRemove[i] = true
-					hole_eat(&other, &hole, &g.holeManager.stats)
+					hole_to_remove[i] = true
+					hole_eat_hole(&other, &hole, &g.holeManager.stats)
 					continue
 				}
 			}
@@ -82,10 +105,9 @@ update :: proc(dt: f32) {
 		hole_apply_force(&hole, dt)
 	}
 
-	#reverse for shouldRemove, i in toRemove {
+	#reverse for shouldRemove, i in hole_to_remove {
 		if shouldRemove {
 			unordered_remove(&g.holeManager.holes, i)
-			g.holeManager.current -= 1
 		}
 	}
 
@@ -93,13 +115,14 @@ update :: proc(dt: f32) {
 
 	curr += dt
 
-	if curr >= durr {
+	object_spawn_rate := obj_stats.spawn_rate * skills.float[.OBJECT_SPAWN_RATE]
+	for curr >= object_spawn_rate {
 		objects_add_random()
-		curr = 0
+		curr -= object_spawn_rate
 	}
 }
 
-draw :: proc() #no_bounds_check {
+gameloop_render :: proc() #no_bounds_check {
 	textures := &g.textures
 	objects := &g.objects
 
@@ -128,15 +151,19 @@ draw :: proc() #no_bounds_check {
 	src_bot: rl.Rectangle : {0, 0, 256, 256}
 	src_top: rl.Rectangle : {256, 0, 256, 256}
 	dual_texture := g.textures[.DUAL_GLOW]
+	max_size := g.holeManager.stats.max_size * g.skills.float[.HOLE_MAX_SIZE]
+	inv_max_size := 1 / max_size
+
+	max_intensity := max_size / 200
 	rl.BeginBlendMode(rl.BlendMode.ADDITIVE)
 	for &hole in g.holeManager.holes {
 		dst = {hole.x, hole.y, hole.size * 2, hole.size * 2}
 		origin = {hole.size, hole.size}
-		intensity := hole.size / g.holeManager.stats.max_size
+
+		intensity := math.min(hole.size * inv_max_size, max_intensity)
 		lowest: f32 = 10
 		col_val: u8 = u8(lowest + f32(255 - lowest) * intensity)
 		col: rl.Color = {col_val, col_val, col_val, 255}
-
 
 		rl.DrawTexturePro(dual_texture, src_bot, dst, origin, 0.0, col)
 		rl.DrawTexturePro(dual_texture, src_top, dst, origin, 0.0, col)

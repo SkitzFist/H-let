@@ -16,6 +16,16 @@ ResourceGain :: struct {
 	value: int,
 }
 
+ResourceResultType :: enum {
+	SUCCESS, //default value
+	CANT_AFFORD,
+}
+
+Cost :: struct {
+	type:  ResourceType,
+	value: int,
+}
+
 RESOURCE_COLOR: [ResourceType]rl.Color = {
 	.DUST = rl.BLUE,
 }
@@ -23,6 +33,49 @@ RESOURCE_COLOR: [ResourceType]rl.Color = {
 resource_gain :: proc(resources: ^Resources, type: ResourceType, value: int) {
 	resources.values[type] += value
 }
+
+@(private = "file")
+resource_buy_single :: proc(resources: ^Resources, cost: Cost) -> bool {
+	resources.values[cost.type] -= cost.value
+	return true
+}
+
+@(private = "file")
+resource_buy_multi :: proc(resources: ^Resources, costs: []Cost) -> (result: ResourceResultType) {
+
+	for cost, i in costs {
+		resources.values[cost.type] -= cost.value
+	}
+
+	return .SUCCESS
+}
+
+resource_buy :: proc {
+	resource_buy_single,
+	resource_buy_multi,
+}
+
+
+@(private = "file")
+resource_can_buy_multi :: proc(
+	resources: ^Resources,
+	costs: []Cost,
+) -> (
+	result: ResourceResultType,
+) {
+	for cost in costs {
+		if cost.value > resources.values[cost.type] {
+			return .CANT_AFFORD
+		}
+	}
+
+	return .SUCCESS
+}
+
+resource_can_buy :: proc {
+	resource_can_buy_multi,
+}
+
 
 resource_draw :: proc(resources: ^Resources) {
 	texts: [ResourceType]cstring
