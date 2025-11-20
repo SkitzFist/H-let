@@ -33,9 +33,28 @@ import "core:time"
 import rl "vendor:raylib"
 
 CAP :: 10000
+
+SceneType :: enum {
+	MENU,
+	GAME,
+	SKILL_TREE,
+}
+
+Scene :: struct {
+	on_enter: proc(),
+	on_exit:  proc(),
+	input:    proc(),
+	update:   proc(dt: f32),
+	render:   proc(),
+}
+
 Game_Memory :: struct {
+	scene:       Scene,
 	holeManager: HoleManager,
 	objects:     Objects,
+	objectStats: ObjectStats,
+	skills:      Skills,
+	skillTree:   SkillTree,
 	resources:   Resources,
 	textures:    [TextureType]rl.Texture2D,
 	run:         bool,
@@ -64,23 +83,22 @@ game_init :: proc() {
 			positions = make(#soa[dynamic]components.Position, 0, CAP, context.allocator),
 			physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
 			sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
+			resource_gains = make(#soa[dynamic]ResourceGain, 0, CAP, context.allocator),
 		},
-		holeManager = {
-			holes = make([dynamic]Hole, 0, 1000, context.allocator),
-			max = 20,
-			current = 0,
-			stats = {evaporationForce = 100, growth_rate = 0.25, max_size = 200},
-		},
+		objectStats = object_stats_create_default(),
+		holeManager = hole_manager_create_default(),
 		textures = create_texture_default(),
+		skills = skills_create_default(),
+		skillTree = skill_tree_create_default(),
 	}
 
 
 	if len(g.objects.positions) == 0 {
 		init_holes := 0
-		init_obj := CAP / 2
+		init_obj := 0
 
 		for i in 0 ..< init_holes {
-			append(&g.holeManager.holes, hole_create_random())
+			append(&g.holeManager.holes, hole_create_default())
 		}
 
 
@@ -89,7 +107,41 @@ game_init :: proc() {
 		}
 	}
 
+	if g.scene.input == nil {
+		switch_scene(.SKILL_TREE)
+	}
+
 	game_hot_reloaded(g)
+}
+
+switch_scene :: proc(type: SceneType) {
+	if g.scene.on_exit != nil {
+		g.scene.on_exit()
+	}
+
+	switch type {
+	case .MENU:
+		//not implemented yet
+		fallthrough
+	case .GAME:
+		g.scene = {
+			on_enter = gameloop_on_enter,
+			on_exit  = game_loop_on_exit,
+			input    = gameloop_input,
+			update   = gameloop_update,
+			render   = gameloop_render,
+		}
+	case .SKILL_TREE:
+		g.scene = {
+			input  = skill_tree_input,
+			update = skill_tree_update,
+			render = skill_tree_render,
+		}
+	}
+
+	if g.scene.on_enter != nil {
+		g.scene.on_enter()
+	}
 }
 
 game_camera :: proc() -> rl.Camera2D {
@@ -107,7 +159,6 @@ ui_camera :: proc() -> rl.Camera2D {
 update_times, input_times, render_times: [100]time.Duration
 update_time, input_time, render_time: f64
 
-
 frames: i64
 
 @(export)
@@ -116,12 +167,12 @@ game_update :: proc() {
 	frames += 1
 
 	start := time.now()
-	input()
+	g.scene.input()
 	input_times[frames % 100] = time.diff(start, time.now())
 	input_time = calc_average_ms(input_times[:])
 
 	start = time.now()
-	update(dt)
+	g.scene.update(dt)
 	update_times[frames % 100] = time.diff(start, time.now())
 	update_time = calc_average_ms(update_times[:])
 
@@ -129,7 +180,7 @@ game_update :: proc() {
 	bgr_col: rl.Color = {10, 10, 10, 100}
 	rl.ClearBackground(bgr_col)
 	start = time.now()
-	draw()
+	g.scene.render()
 	render_times[frames % 100] = time.diff(start, time.now())
 	render_time = calc_average_ms(render_times[:])
 	rl.EndDrawing()
