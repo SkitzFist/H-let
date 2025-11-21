@@ -2,11 +2,7 @@ package game
 
 import c "components"
 import "core:math"
-import "core:math/rand"
 import rl "vendor:raylib"
-
-//debug
-import "core:fmt"
 
 
 HoleManager :: struct {
@@ -122,7 +118,7 @@ hole_attract_objects :: proc(
 			continue
 		}
 
-		holeInnerRadius := hole.size / 2
+		holeInnerRadius := hole.size * 0.2
 		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
 			append(toRemove, i)
 			continue
@@ -151,7 +147,7 @@ hole_attract_objects :: proc(
 	}
 
 	if mass_growth > 0 {
-		max_growth_per_frame := hole.size * 0.05
+		max_growth_per_frame := hole.size * 0.025
 		hole.size += math.min(max_growth_per_frame, f32(size_growth))
 		hole.mass += f32(mass_growth)
 		hole.size = math.min(hole.size, max_size)
@@ -220,7 +216,7 @@ hole_apply_force :: proc(hole: ^Hole, dt: f32) {
 
 hole_eat_hole :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
 	hole.mass += other.mass / 2
-	hole.size += other.size / 2
+	hole.size += other.size
 	max_size := stats.max_size * g.skills.float[.HOLE_MAX_SIZE]
 	hole.size = math.min(hole.size, max_size)
 }
