@@ -64,7 +64,9 @@ g: ^Game_Memory
 
 @(export)
 game_init_window :: proc() {
-	//rl.SetConfigFlags({.VSYNC_HINT})
+	rl.SetConfigFlags(
+		{.BORDERLESS_WINDOWED_MODE, .VSYNC_HINT, .WINDOW_MAXIMIZED, .WINDOW_RESIZABLE},
+	)
 	monitor: i32 = 0
 	width := rl.GetMonitorWidth(monitor)
 	height := rl.GetMonitorHeight(monitor)
@@ -190,6 +192,8 @@ game_update :: proc() {
 	g.scene.render()
 	render_times[frames % 100] = time.diff(start, time.now())
 	render_time = calc_average_ms(render_times[:])
+
+	rl.DrawLine(0, rl.GetRenderHeight(), rl.GetRenderWidth(), rl.GetRenderHeight(), rl.YELLOW)
 	rl.EndDrawing()
 
 	// Everything on tracking allocator is valid until end-of-frame.
