@@ -1,7 +1,6 @@
 package game
 import "core:fmt"
 import "core:math"
-import "core:math/noise"
 
 import rl "vendor:raylib"
 
@@ -11,8 +10,11 @@ gameloop_on_enter :: proc() {
 	g.holeManager.used = 0
 	g.holeManager.max = g.skills.int[.HOLE_MAX_HOLE_COUNT]
 
+	max_mid := math.min(100 + g.skills.int[.OBJECT_INITIAL_AMOUNT] / 10, 500)
 	for i in 0 ..< g.skills.int[.OBJECT_INITIAL_AMOUNT] {
-		objects_add_random_mid(0.15)
+		if i < max_mid {
+			objects_add_random_mid(0.15)
+		}
 		objects_add_random()
 	}
 }
@@ -25,10 +27,6 @@ game_loop_on_exit :: proc() {
 }
 
 gameloop_input :: proc() {
-	if rl.IsKeyPressed(.ESCAPE) {
-		g.run = false
-		return
-	}
 
 	hole_input_size(&g.holeManager)
 
@@ -115,7 +113,7 @@ gameloop_update :: proc(dt: f32) {
 
 	curr += dt
 
-	object_spawn_rate := obj_stats.spawn_rate * skills.float[.OBJECT_SPAWN_RATE]
+	object_spawn_rate := obj_stats.spawn_rate / skills.float[.OBJECT_SPAWN_RATE]
 	for curr >= object_spawn_rate {
 		objects_add_random()
 		curr -= object_spawn_rate

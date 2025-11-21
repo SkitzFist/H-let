@@ -14,6 +14,14 @@ SkillTree :: struct {
 	buttons:   #soa[1]c.Button,
 }
 
+skill_tree_on_exit :: proc() {
+	free_all(context.temp_allocator)
+}
+
+skill_tree_on_enter :: proc() {
+	free_all(context.temp_allocator)
+}
+
 skill_tree_create_default :: proc() -> SkillTree {
 	buttons: #soa[1]c.Button
 
@@ -189,9 +197,18 @@ skill_tree_render :: proc() {
 	append(&to_visit, init_node)
 
 	for type in to_visit {
+		node := &nodes[type]
 		x, y := i32(pos[type].x), i32(pos[type].y)
 
-		frame_color := type == tree.on_mouse ? rl.GREEN : rl.BLUE
+		frame_color: rl.Color
+
+		if node.level == node_max_level(node) {
+			frame_color = rl.BLUE
+		} else {
+			frame_color =
+				node.level < node_max_level(node) && resource_can_buy(&g.resources, node.costs[node.level]) == .SUCCESS ? rl.GREEN : rl.RED
+		}
+
 
 		rl.DrawRectangle(
 			x - (NODE_BORDER_SIZE / 2),
@@ -200,7 +217,10 @@ skill_tree_render :: proc() {
 			NODE_HEIGHT + NODE_BORDER_SIZE,
 			frame_color,
 		)
-		rl.DrawRectangle(x, y, NODE_WIDTH, NODE_HEIGHT, rl.RAYWHITE)
+
+		node_color :=
+			node.level == node_max_level(node) ? rl.Color{130, 130, 130, 230} : rl.RAYWHITE
+		rl.DrawRectangle(x, y, NODE_WIDTH, NODE_HEIGHT, node_color)
 
 		if nodes[type].level > 0 {
 			for connection in nodes[type].connections {
@@ -254,6 +274,8 @@ draw_node_tool_tip :: proc(type: NodeType) {
 
 	print_costs := node.level < node_max_level(node)
 
+	//this part leaks memory on hot reloads
+	//prob not a problem on release build
 	cost_text: cstring
 	if print_costs {
 		costs := node.costs[node.level]
@@ -263,7 +285,10 @@ draw_node_tool_tip :: proc(type: NodeType) {
 			parts[i] = fmt.tprintf("[%s: %i]", type_text, cost.value)
 		}
 
-		cost_text = fmt.ctprintf("Cost: %s", strings.join(parts, ", "))
+		cost_text = fmt.ctprintf(
+			"Cost: %s",
+			strings.join(parts, ", ", allocator = context.temp_allocator),
+		)
 	}
 
 

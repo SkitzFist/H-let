@@ -133,9 +133,11 @@ switch_scene :: proc(type: SceneType) {
 		}
 	case .SKILL_TREE:
 		g.scene = {
-			input  = skill_tree_input,
-			update = skill_tree_update,
-			render = skill_tree_render,
+			on_enter = skill_tree_on_enter,
+			on_exit  = skill_tree_on_exit,
+			input    = skill_tree_input,
+			update   = skill_tree_update,
+			render   = skill_tree_render,
 		}
 	}
 
@@ -166,6 +168,11 @@ game_update :: proc() {
 	dt := rl.GetFrameTime()
 	frames += 1
 
+
+	if rl.IsKeyPressed(.ESCAPE) {
+		g.run = false
+		return
+	}
 	start := time.now()
 	g.scene.input()
 	input_times[frames % 100] = time.diff(start, time.now())
