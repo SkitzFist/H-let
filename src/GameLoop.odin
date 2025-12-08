@@ -1,54 +1,84 @@
 package game
 import "core:fmt"
 import "core:math"
+import "core:slice"
 
 import rl "vendor:raylib"
 
-import "components"
+
+@(private = "file")
+ButtonMap :: enum {
+	SKILL_TREE,
+}
+
+Gameloop :: struct {
+	buttons:   [ButtonMap]Button,
+	on_button: int,
+}
+
+gameloop_create_default :: proc() -> Gameloop {
+	gameloop: Gameloop = {
+		buttons = {
+			.SKILL_TREE = {
+				text = "Skill tree",
+				visible = true,
+				func = proc() {switch_scene(.SKILL_TREE)},
+				style = {color = rl.WHITE, text_color = rl.GRAY, font_size = 20},
+			},
+		},
+	}
+	return gameloop
+}
 
 gameloop_on_enter :: proc() {
-	g.holeManager.used = 0
-	g.holeManager.max = g.skills.int[.HOLE_MAX_HOLE_COUNT]
+	// max_mid := math.min(100 + g.skills.int[.OBJECT_INITIAL_AMOUNT] / 10, 500)
+	// for i in 0 ..< g.skills.int[.OBJECT_INITIAL_AMOUNT] {
+	// 	if i < max_mid {
+	// 		objects_add_random_mid(0.15)
+	// 	}
+	// 	objects_add_random()
+	// }
 
-	max_mid := math.min(100 + g.skills.int[.OBJECT_INITIAL_AMOUNT] / 10, 500)
-	for i in 0 ..< g.skills.int[.OBJECT_INITIAL_AMOUNT] {
-		if i < max_mid {
-			objects_add_random_mid(0.15)
-		}
-		objects_add_random()
-	}
 }
 
 game_loop_on_exit :: proc() {
-	clear(&g.objects.physics)
-	clear(&g.objects.positions)
-	clear(&g.objects.resource_gains)
-	clear(&g.objects.sizes)
+
 }
 
 gameloop_input :: proc() {
+	gameloop := &g.gameloop
 
-	hole_input_size(&g.holeManager)
+	if rl.IsKeyPressed(rl.KeyboardKey.T) {
+		switch_scene(.SKILL_TREE)
+	}
+
+	gameloop.on_button = button_input(slice.enumerated_array(&g.gameloop.buttons))
+	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) && gameloop.on_button != -1 {
+		g.gameloop.buttons[ButtonMap(gameloop.on_button)].func()
+	}
+
+	if gameloop.on_button == -1 {
+		hole_input(&g.holeManager)
+	}
 
 	if rl.IsKeyPressed(rl.KeyboardKey.PERIOD) {
 		for i in 0 ..< 10_000 {
 			objects_add_random()
 		}
 	}
+
+
 }
 
 curr: f32 = 0.0
+//TODO refactor this entire mess
 gameloop_update :: proc(dt: f32) {
 	holeManager := &g.holeManager
 	objects := &g.objects
 	obj_stats := &g.objectStats
 	skills := &g.skills
-
-	if holeManager.used == holeManager.max && len(holeManager.holes) == 0 {
-		switch_scene(.SKILL_TREE)
-		return
-	}
-
+	resources := &g.resources
+	gameloop := &g.gameloop
 
 	hole_to_remove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
 	obj_to_remove := make([dynamic]int, 0, context.temp_allocator)
@@ -61,21 +91,12 @@ gameloop_update :: proc(dt: f32) {
 			hole_to_remove[i] = true
 		}
 
-		hole_attract_objects(
-			&hole,
-			&holeManager.stats,
-			&objects.positions,
-			&objects.physics,
-			&objects.sizes,
-			&obj_to_remove,
-		)
+		hole_attract_objects(&hole, &holeManager.stats, objects, &obj_to_remove)
 
 		#reverse for obj in obj_to_remove {
-			resource_gain(
-				&g.resources,
-				objects.resource_gains[obj].type,
-				objects.resource_gains[obj].value,
-			)
+
+			resource_drop := objects[obj].resource_drop
+			hole.resources_eaten[resource_drop.type] += resource_drop.value
 
 			objects_remove(obj)
 		}
@@ -105,11 +126,12 @@ gameloop_update :: proc(dt: f32) {
 
 	#reverse for shouldRemove, i in hole_to_remove {
 		if shouldRemove {
-			unordered_remove(&g.holeManager.holes, i)
+			resource_gain_multi(resources, holeManager.holes[i].resources_eaten)
+			hole_remove(holeManager, i)
 		}
 	}
 
-	objects_apply_forces(&objects.positions, &objects.physics, dt)
+	objects_apply_forces(objects.pos, objects.phys, len(objects), dt)
 
 	curr += dt
 
@@ -118,11 +140,22 @@ gameloop_update :: proc(dt: f32) {
 		objects_add_random()
 		curr -= object_spawn_rate
 	}
+
+	//set button position
+	button := &gameloop.buttons[.SKILL_TREE]
+	button_width := f32(rl.GetRenderWidth()) * 0.075
+	button_height := f32(rl.GetRenderHeight()) * 0.035
+	button.x = f32(rl.GetRenderWidth() / 2) - (button_width / 2) - button_width
+	button.y = f32(rl.GetRenderHeight()) - (button_height * 1.5)
+	button.width = button_width
+	button.height = button_height
 }
 
 gameloop_render :: proc() #no_bounds_check {
 	textures := &g.textures
 	objects := &g.objects
+	pos := &objects.pos
+	size := &objects.size
 
 	// // BGR
 	src: rl.Rectangle = {
@@ -137,7 +170,7 @@ gameloop_render :: proc() #no_bounds_check {
 	//rl.BeginMode2D(game_camera())
 
 
-	// // Hole
+	// // Hole plain
 	origin: rl.Vector2
 
 	almost_black: rl.Color = {10, 10, 10, 255}
@@ -146,6 +179,16 @@ gameloop_render :: proc() #no_bounds_check {
 		//rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
+	// object plain
+	cloud_src: rl.Rectangle = {0, 0, f32(textures[.CLOUD].width), f32(textures[.CLOUD].height)}
+	for i in 0 ..< len(objects) {
+		dst = {pos[i].x, pos[i].y, size[i].width * 2, size[i].height * 2}
+		origin = {size[i].width, size[i].height}
+		rl.DrawTexturePro(textures[.CLOUD], cloud_src, dst, origin, 0.0, rl.WHITE)
+	}
+
+
+	//hole glow
 	src_bot: rl.Rectangle : {0, 0, 256, 256}
 	src_top: rl.Rectangle : {256, 0, 256, 256}
 	dual_texture := g.textures[.DUAL_GLOW]
@@ -167,18 +210,13 @@ gameloop_render :: proc() #no_bounds_check {
 		rl.DrawTexturePro(dual_texture, src_top, dst, origin, 0.0, col)
 	}
 
-	// objects
-	positions := &objects.positions
-	sizes := &objects.sizes
-	px := positions.x
-	py := positions.y
-	sw := sizes.width
-	sh := sizes.height
+	// //object glow
+	for i in 0 ..< len(objects) {
+		dst = {pos[i].x, pos[i].y, size[i].width * 2, size[i].height * 2}
+		origin = {size[i].width, size[i].height}
 
-	for i in 0 ..< len(positions^) {
-		dst = {px[i], py[i], sw[i] * 2, sh[i] * 2}
-		origin = {sw[i], sh[i]}
-
+		//randRotate := rand.float32_range(0, 360)
+		//rl.DrawTexturePro(textures[.CLOUD], cloud_src, dst, origin, 0, rl.WHITE)
 		rl.DrawTexturePro(dual_texture, src_bot, dst, origin, 0.0, rl.BLUE)
 		//rl.DrawTexturePro(dual_texture, src_top, dst, origin, 0.0, rl.WHITE)
 	}
@@ -190,6 +228,16 @@ gameloop_render :: proc() #no_bounds_check {
 
 	resource_draw(&g.resources)
 
+	button_draw(slice.enumerated_array(&g.gameloop.buttons))
+
+	FONT_SIZE :: 20
+	manager := &g.holeManager
+	holes_text := fmt.ctprintf("Holes: %i/%i", manager.current, g.skills.int[.HOLE_MAX_HOLE_COUNT])
+	holes_text_size := rl.MeasureTextEx(rl.GetFontDefault(), holes_text, FONT_SIZE, 1.0)
+	x := i32(f32(rl.GetRenderWidth()) / 2 - holes_text_size.x / 2)
+	y := rl.GetRenderHeight() - i32(holes_text_size.y * 2)
+	rl.DrawText(holes_text, x, y, FONT_SIZE, rl.RAYWHITE)
+
 	frame_col: rl.Color = {130, 130, 130, 100}
 	rl.DrawRectangle(2, 2, 200, 150, frame_col)
 
@@ -197,7 +245,7 @@ gameloop_render :: proc() #no_bounds_check {
 		fmt.ctprintf(
 			"fps: %i\nObjects: %i\nHoles:%i\ninput: %.4fms\nupdate: %.4fms\nrender: %.4fms",
 			rl.GetFPS(),
-			len(positions^),
+			len(objects),
 			len(g.holeManager.holes),
 			input_time,
 			update_time,
@@ -211,3 +259,4 @@ gameloop_render :: proc() #no_bounds_check {
 
 	//rl.EndMode2D()
 }
+

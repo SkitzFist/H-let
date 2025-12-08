@@ -27,12 +27,11 @@ created.
 
 package game
 
-import "components"
 import "core:mem"
 import "core:time"
 import rl "vendor:raylib"
 
-CAP :: 10000
+CAP :: 10_000
 
 SceneType :: enum {
 	MENU,
@@ -51,7 +50,8 @@ Scene :: struct {
 Game_Memory :: struct {
 	scene:       Scene,
 	holeManager: HoleManager,
-	objects:     Objects,
+	gameloop:    Gameloop,
+	objects:     #soa[dynamic]Object,
 	objectStats: ObjectStats,
 	skills:      Skills,
 	skillTree:   SkillTree,
@@ -64,9 +64,7 @@ g: ^Game_Memory
 
 @(export)
 game_init_window :: proc() {
-	rl.SetConfigFlags(
-		{.BORDERLESS_WINDOWED_MODE, .VSYNC_HINT, .WINDOW_MAXIMIZED, .WINDOW_RESIZABLE},
-	)
+	rl.SetConfigFlags({.BORDERLESS_WINDOWED_MODE, .WINDOW_MAXIMIZED, .WINDOW_RESIZABLE})
 	monitor: i32 = 0
 	width := rl.GetMonitorWidth(monitor)
 	height := rl.GetMonitorHeight(monitor)
@@ -80,24 +78,20 @@ game_init :: proc() {
 	g = new(Game_Memory)
 
 	g^ = Game_Memory {
-		run = true,
-		objects = {
-			positions = make(#soa[dynamic]components.Position, 0, CAP, context.allocator),
-			physics = make(#soa[dynamic]components.Physic, 0, CAP, context.allocator),
-			sizes = make(#soa[dynamic]components.Size, 0, CAP, context.allocator),
-			resource_gains = make(#soa[dynamic]ResourceGain, 0, CAP, context.allocator),
-		},
+		run         = true,
+		objects     = make(#soa[dynamic]Object, 0, CAP, context.allocator),
+		gameloop    = gameloop_create_default(),
 		objectStats = object_stats_create_default(),
 		holeManager = hole_manager_create_default(),
-		textures = create_texture_default(),
-		skills = skills_create_default(),
-		skillTree = skill_tree_create_default(),
+		textures    = create_texture_default(),
+		skills      = skills_create_default(),
+		skillTree   = skill_tree_create_default(),
 	}
 
 
-	if len(g.objects.positions) == 0 {
+	if len(g.objects) == 0 {
 		init_holes := 0
-		init_obj := 0
+		init_obj := 1000
 
 		for i in 0 ..< init_holes {
 			append(&g.holeManager.holes, hole_create_default())
@@ -110,7 +104,7 @@ game_init :: proc() {
 	}
 
 	if g.scene.input == nil {
-		switch_scene(.SKILL_TREE)
+		switch_scene(.GAME)
 	}
 
 	game_hot_reloaded(g)
@@ -193,7 +187,6 @@ game_update :: proc() {
 	render_times[frames % 100] = time.diff(start, time.now())
 	render_time = calc_average_ms(render_times[:])
 
-	rl.DrawLine(0, rl.GetRenderHeight(), rl.GetRenderWidth(), rl.GetRenderHeight(), rl.YELLOW)
 	rl.EndDrawing()
 
 	// Everything on tracking allocator is valid until end-of-frame.
@@ -230,7 +223,7 @@ game_shutdown :: proc() {
 		rl.UnloadTexture(texture)
 	}
 
-	objects_delete(&g.objects)
+	delete(g.objects)
 	delete(g.holeManager.holes)
 
 	free(g)
@@ -274,3 +267,4 @@ game_force_restart :: proc() -> bool {
 game_parent_window_size_changed :: proc(w, h: int) {
 	rl.SetWindowSize(i32(w), i32(h))
 }
+
