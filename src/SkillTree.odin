@@ -1,35 +1,49 @@
 package game
 
 import "core:fmt"
+import "core:slice"
 import "core:strings"
 
-import c "components"
 import rl "vendor:raylib"
+
+@(private = "file")
+ButtonMap :: enum {
+	RESUME,
+	ROUND_SCORE_OK,
+}
 
 SkillTree :: struct {
 	nodes:     [NodeType]Node,
 	pos:       [NodeType]rl.Vector2,
 	node_size: rl.Vector2,
 	on_mouse:  NodeType,
-	buttons:   #soa[1]c.Button,
+	buttons:   [ButtonMap]Button,
 }
 
 skill_tree_on_exit :: proc() {
-	free_all(context.temp_allocator)
+
 }
 
 skill_tree_on_enter :: proc() {
-	free_all(context.temp_allocator)
+	//resource_gain_multi(&g.resources, g.round.resources_gained)
 }
 
 skill_tree_create_default :: proc() -> SkillTree {
-	buttons: #soa[1]c.Button
+	buttons: [ButtonMap]Button
 
-	buttons[0] = {
-		text = "PLAY",
-		visible = true,
-		func = proc() {switch_scene(.GAME)},
-		style = {color = rl.WHITE, text_color = rl.GREEN, font_size = 20},
+	buttons = {
+		.RESUME = {
+			text = "Resume",
+			visible = true,
+			func = proc() {switch_scene(.GAME)},
+			style = {color = rl.WHITE, text_color = rl.GREEN, font_size = 20},
+		},
+		.ROUND_SCORE_OK = {
+			text = "Ok",
+			visible = false,
+			func = proc() {switch_scene(.GAME)},
+			style = {color = rl.WHITE, text_color = rl.GREEN, font_size = 20},
+		},
 	}
 
 	return {
@@ -139,41 +153,25 @@ skill_tree_input :: proc() {
 		}
 	}
 
-	button_index := -1
-
-	for &button, i in g.skillTree.buttons {
-		if intersects_point_rect(
-			mouse_pos.x,
-			mouse_pos.y,
-			button.x,
-			button.y,
-			button.width,
-			button.height,
-		) {
-			button_index = i
-			button.hover = true
-		}
-	}
-
-	button := &g.skillTree.buttons[0]
+	button_index := button_input(slice.enumerated_array(&tree.buttons))
 
 	if rl.IsMouseButtonPressed(.LEFT) && button_index != -1 {
-		button.func()
+		g.skillTree.buttons[ButtonMap(button_index)].func()
 	}
 
 }
 
 skill_tree_update :: proc(dt: f32) {
-	button := &g.skillTree.buttons[0]
+	resume_button := &g.skillTree.buttons[.RESUME]
 
 	//todo should be moved to on resize
 	button_width := f32(rl.GetRenderWidth()) * 0.1
 	button_height := f32(rl.GetRenderHeight()) * 0.05
 
-	button.x = f32(rl.GetRenderWidth()) / 2 - button_width / 2
-	button.y = f32(rl.GetRenderHeight()) - button_height * 3
-	button.width = button_width
-	button.height = button_height
+	resume_button.x = f32(rl.GetRenderWidth()) / 2 - button_width / 2
+	resume_button.y = f32(rl.GetRenderHeight()) - button_height * 3
+	resume_button.width = button_width
+	resume_button.height = button_height
 }
 
 skill_tree_render :: proc() {
@@ -246,8 +244,7 @@ skill_tree_render :: proc() {
 
 	resource_draw(&g.resources)
 
-	button := &g.skillTree.buttons[0]
-	c.draw_button(g.skillTree.buttons[:])
+	button_draw(slice.enumerated_array(&g.skillTree.buttons))
 
 	draw_node_tool_tip(tree.on_mouse)
 
@@ -274,8 +271,6 @@ draw_node_tool_tip :: proc(type: NodeType) {
 
 	print_costs := node.level < node_max_level(node)
 
-	//this part leaks memory on hot reloads
-	//prob not a problem on release build
 	cost_text: cstring
 	if print_costs {
 		costs := node.costs[node.level]
@@ -341,3 +336,4 @@ draw_node_tool_tip :: proc(type: NodeType) {
 	)
 
 }
+

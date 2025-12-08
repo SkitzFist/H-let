@@ -7,7 +7,7 @@ TextureType :: enum {
 	SQUARE,
 	BACKGROUND,
 	DUAL_GLOW,
-	SKILL_TREE,
+	CLOUD,
 }
 
 create_texture_default :: proc() -> [TextureType]rl.Texture2D {
@@ -15,7 +15,7 @@ create_texture_default :: proc() -> [TextureType]rl.Texture2D {
 		.SQUARE = create_square(),
 		.BACKGROUND = rl.LoadTexture("assets/warp.png"),
 		.DUAL_GLOW = MakeDualRadialGlowTex(256, 0.1, 1.0, 0.05, 0.8),
-		.SKILL_TREE = {},
+		.CLOUD = rl.LoadTexture("assets/cloud.png"),
 	}
 }
 
