@@ -1,20 +1,33 @@
 package game
 
+import "core:math"
+import "core:time"
 import rl "vendor:raylib"
 
+ButtonStyleType :: enum {
+	NORMAL,
+	ACTIVE,
+}
 
+//TODO split into buttonStyle and TextStyle, keep in separate arrays.
+//     so we can seprate button drawing and text drawing into their own segments
+//     so raylib doesn't have to texture switch between drawing rectangles and texts
 ButtonStyle :: struct {
 	color:      rl.Color,
 	text_color: rl.Color,
 	font_size:  i32,
 }
 
+BUTTON_STYLES: [ButtonStyleType]ButtonStyle = {
+	.NORMAL = {color = rl.WHITE, text_color = rl.GRAY, font_size = 20},
+	.ACTIVE = {},
+}
 
 Button :: struct {
 	x, y, width, height: f32,
 	text:                cstring,
 	func:                proc(),
-	style:               ButtonStyle,
+	style:               ButtonStyleType,
 	visible:             bool,
 }
 
@@ -55,9 +68,9 @@ button_draw :: proc(buttons: []Button) {
 	for &button in buttons {
 		if !button.visible {continue}
 
-		style := &button.style
+		style := &BUTTON_STYLES[button.style]
 		text_size := rl.MeasureTextEx(rl.GetFontDefault(), button.text, f32(style.font_size), 1.0)
-		x, y :=
+		text_x, text_y :=
 			i32(button.x + (button.width / 2 - text_size.x / 2)),
 			i32(button.y + (button.height / 2 - text_size.y / 2))
 
@@ -68,7 +81,48 @@ button_draw :: proc(buttons: []Button) {
 			style.color,
 		)
 
-		rl.DrawText(button.text, x, y, style.font_size, style.text_color)
+		rl.DrawText(button.text, text_x, text_y, style.font_size, style.text_color)
+	}
+}
+
+button_draw_active :: proc(
+	buttons: [ActiveType]Button,
+	cooldowns: [ActiveType]Cooldown,
+	enabled: bit_set[ActiveType],
+) {
+
+	for button, type in buttons {
+		if type in enabled {
+			style := &BUTTON_STYLES[button.style]
+			text_size := rl.MeasureTextEx(
+				rl.GetFontDefault(),
+				button.text,
+				f32(style.font_size),
+				1.0,
+			)
+			text_x, text_y :=
+				i32(button.x + (button.width / 2 - text_size.x / 2)),
+				i32(button.y + (button.height / 2 - text_size.y / 2))
+
+			elapsed := time.diff(cooldowns[type].last_used_at, time.now())
+			perc := math.min(1.0, f32(elapsed) / f32(cooldowns[type].cooldown))
+
+			rl.DrawRectangleRounded(
+				{button.x, button.y, button.width, button.height},
+				1.0,
+				32,
+				style.color,
+			)
+
+			rl.DrawRectangleRounded(
+				{button.x, button.y, button.width * perc, button.height},
+				1.0,
+				32,
+				rl.SKYBLUE,
+			)
+			rl.DrawText(button.text, text_x, text_y, style.font_size, style.text_color)
+
+		}
 	}
 }
 

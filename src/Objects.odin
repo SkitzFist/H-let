@@ -20,11 +20,8 @@ object_stats_create_default :: proc() -> ObjectStats {
 	return {spawn_rate = 0.5}
 }
 
-@(private = "file")
-BASE_SIZE :: 2
-
-@(private = "file")
-BASE_MASS :: 100
+OBJECT_BASE_SIZE :: 2
+OBJECT_BASE_MASS :: 100
 
 objects_add_random :: #force_inline proc() {
 
@@ -35,8 +32,8 @@ objects_add_random :: #force_inline proc() {
 			x = rand.float32_range(0, f32(rl.GetRenderWidth())),
 			y = rand.float32_range(0, f32(rl.GetRenderHeight())),
 		},
-		phys = {mass = BASE_MASS * factor},
-		size = {width = BASE_SIZE * factor, height = BASE_SIZE * factor},
+		phys = {mass = OBJECT_BASE_MASS * factor},
+		size = {width = OBJECT_BASE_SIZE * factor, height = OBJECT_BASE_SIZE * factor},
 		resource_drop = {type = .DUST, value = 1},
 	}
 
@@ -61,8 +58,8 @@ objects_add_random_mid :: proc(sizeFactor: f32) {
 			x = rand.float32_range(rect.x, rect.x + rect.width),
 			y = rand.float32_range(rect.y, rect.y + rect.height),
 		},
-		phys = {mass = BASE_MASS * factor},
-		size = {width = BASE_SIZE * factor, height = BASE_SIZE * factor},
+		phys = {mass = OBJECT_BASE_MASS * factor},
+		size = {width = OBJECT_BASE_SIZE * factor, height = OBJECT_BASE_SIZE * factor},
 		resource_drop = {type = .DUST, value = 1},
 	}
 

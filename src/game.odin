@@ -50,11 +50,11 @@ Scene :: struct {
 Game_Memory :: struct {
 	scene:       Scene,
 	holeManager: HoleManager,
+	skillTree:   SkillTree,
 	gameloop:    Gameloop,
 	objects:     #soa[dynamic]Object,
 	objectStats: ObjectStats,
 	skills:      Skills,
-	skillTree:   SkillTree,
 	resources:   Resources,
 	textures:    [TextureType]rl.Texture2D,
 	run:         bool,

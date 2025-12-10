@@ -13,6 +13,7 @@ BoolSkillType :: enum {}
 
 IntSkillType :: enum {
 	HOLE_MAX_HOLE_COUNT,
+	ACTIVE_SPAWN_DUST_AMOUNT,
 }
 
 SkillType :: union {
@@ -30,7 +31,7 @@ Skills :: struct {
 skills_create_default :: proc() -> Skills {
 	return {
 		float = {min(FloatSkillType) ..= max(FloatSkillType) = 1.0},
-		int = {.HOLE_MAX_HOLE_COUNT = 1},
+		int = {.HOLE_MAX_HOLE_COUNT = 1, .ACTIVE_SPAWN_DUST_AMOUNT = 100},
 	}
 }
 

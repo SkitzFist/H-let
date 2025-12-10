@@ -36,13 +36,13 @@ skill_tree_create_default :: proc() -> SkillTree {
 			text = "Resume",
 			visible = true,
 			func = proc() {switch_scene(.GAME)},
-			style = {color = rl.WHITE, text_color = rl.GREEN, font_size = 20},
+			style = .NORMAL,
 		},
 		.ROUND_SCORE_OK = {
 			text = "Ok",
 			visible = false,
 			func = proc() {switch_scene(.GAME)},
-			style = {color = rl.WHITE, text_color = rl.GREEN, font_size = 20},
+			style = .NORMAL,
 		},
 	}
 
