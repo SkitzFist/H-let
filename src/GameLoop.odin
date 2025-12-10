@@ -2,6 +2,7 @@ package game
 import "core:fmt"
 import "core:math"
 import "core:slice"
+import "core:time"
 
 import rl "vendor:raylib"
 
@@ -14,6 +15,7 @@ ButtonMap :: enum {
 Gameloop :: struct {
 	buttons:   [ButtonMap]Button,
 	on_button: int,
+	actives:   Actives,
 }
 
 gameloop_create_default :: proc() -> Gameloop {
@@ -23,21 +25,15 @@ gameloop_create_default :: proc() -> Gameloop {
 				text = "Skill tree",
 				visible = true,
 				func = proc() {switch_scene(.SKILL_TREE)},
-				style = {color = rl.WHITE, text_color = rl.GRAY, font_size = 20},
+				style = .NORMAL,
 			},
 		},
+		actives = actives_create_default(),
 	}
 	return gameloop
 }
 
 gameloop_on_enter :: proc() {
-	// max_mid := math.min(100 + g.skills.int[.OBJECT_INITIAL_AMOUNT] / 10, 500)
-	// for i in 0 ..< g.skills.int[.OBJECT_INITIAL_AMOUNT] {
-	// 	if i < max_mid {
-	// 		objects_add_random_mid(0.15)
-	// 	}
-	// 	objects_add_random()
-	// }
 
 }
 
@@ -47,6 +43,8 @@ game_loop_on_exit :: proc() {
 
 gameloop_input :: proc() {
 	gameloop := &g.gameloop
+	actives := &gameloop.actives
+	now := time.now()
 
 	if rl.IsKeyPressed(rl.KeyboardKey.T) {
 		switch_scene(.SKILL_TREE)
@@ -57,7 +55,20 @@ gameloop_input :: proc() {
 		g.gameloop.buttons[ButtonMap(gameloop.on_button)].func()
 	}
 
-	if gameloop.on_button == -1 {
+	active_button_index := button_input(slice.enumerated_array(&actives.buttons))
+	if active_button_index != -1 && rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+		active_type := ActiveType(active_button_index)
+		elapsed := time.diff(actives.cooldowns[active_type].last_used_at, now)
+		can_use := elapsed >= actives.cooldowns[active_type].cooldown
+
+		if can_use {
+			gameloop.actives.cooldowns[active_type].last_used_at = time.now()
+			//TODO when done prototyping, don't trigger actives from input, add to queue and trigger in update
+			gameloop.actives.active_use[active_type]()
+		}
+	}
+
+	if gameloop.on_button == -1 && active_button_index == -1 {
 		hole_input(&g.holeManager)
 	}
 
@@ -66,8 +77,6 @@ gameloop_input :: proc() {
 			objects_add_random()
 		}
 	}
-
-
 }
 
 curr: f32 = 0.0
@@ -80,6 +89,7 @@ gameloop_update :: proc(dt: f32) {
 	resources := &g.resources
 	gameloop := &g.gameloop
 
+	//todo cleanup, should allocate from custom tmp allocator (custom impl)
 	hole_to_remove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
 	obj_to_remove := make([dynamic]int, 0, context.temp_allocator)
 	for &hole, i in holeManager.holes {
@@ -156,6 +166,7 @@ gameloop_render :: proc() #no_bounds_check {
 	objects := &g.objects
 	pos := &objects.pos
 	size := &objects.size
+	gameloop := &g.gameloop
 
 	// // BGR
 	src: rl.Rectangle = {
@@ -229,6 +240,11 @@ gameloop_render :: proc() #no_bounds_check {
 	resource_draw(&g.resources)
 
 	button_draw(slice.enumerated_array(&g.gameloop.buttons))
+	button_draw_active(
+		gameloop.actives.buttons,
+		gameloop.actives.cooldowns,
+		gameloop.actives.enabled,
+	)
 
 	FONT_SIZE :: 20
 	manager := &g.holeManager
