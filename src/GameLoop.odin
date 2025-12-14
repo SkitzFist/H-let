@@ -91,7 +91,6 @@ gameloop_update :: proc(dt: f32) {
 		hole_attract_objects(&hole, &holeManager.stats, objects, &obj_to_remove)
 
 		#reverse for obj in obj_to_remove {
-
 			resource_drop := objects[obj].resource_drop
 			hole.resources_eaten[resource_drop.type] += resource_drop.value
 

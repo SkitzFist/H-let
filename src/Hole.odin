@@ -118,19 +118,6 @@ hole_attract_objects :: proc(
 	max_size := stats.max_size * skills.float[.HOLE_MAX_SIZE]
 
 	for i in 0 ..< length {
-
-		// if !intersects(
-		// 	f32(hole.x),
-		// 	f32(hole.y),
-		// 	holeOuterRadius,
-		// 	pos[i].x,
-		// 	pos[i].y,
-		// 	size[i].width,
-		// 	size[i].height,
-		// ) {
-		// 	continue
-		// }
-
 		holeInnerRadius := hole.size * 0.2
 		if intersects(
 			f32(hole.x),
@@ -160,14 +147,13 @@ hole_attract_objects :: proc(
 		hole.ay += (-dy * strength)
 	}
 
-
+	//TODO move collision resolution out of this
 	size_growth: f64 = 0.0
 	mass_growth: f64 = 0.0
 
 	for i in toRemove {
 		size_growth += ((f64(size[i].width) + f64(size[i].height)) / 2.0) * growth_rate
 		mass_growth += f64(phys[i].mass)
-		hole.resources_eaten[.DUST] += 1
 	}
 
 	if mass_growth > 0 {
@@ -236,6 +222,8 @@ hole_eat_hole :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
 	hole.size += other.size
 	max_size := stats.max_size * g.skills.float[.HOLE_MAX_SIZE]
 	hole.size = math.min(hole.size, max_size)
+	hole.resources_eaten += other.resources_eaten
+	other.resources_eaten = {}
 	hole.resources_eaten[.HOLE] += 1
 }
 
