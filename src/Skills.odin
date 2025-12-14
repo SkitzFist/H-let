@@ -9,10 +9,13 @@ FloatSkillType :: enum {
 	HOLE_REACH_RADIUS,
 }
 
-BoolSkillType :: enum {}
+BoolSkillType :: enum {
+	ACTIVE_SPAWN_DUST_AUTO_CAST,
+}
 
 IntSkillType :: enum {
 	HOLE_MAX_HOLE_COUNT,
+	HOLE_MASS,
 	ACTIVE_SPAWN_DUST_AMOUNT,
 }
 
@@ -31,7 +34,7 @@ Skills :: struct {
 skills_create_default :: proc() -> Skills {
 	return {
 		float = {min(FloatSkillType) ..= max(FloatSkillType) = 1.0},
-		int = {.HOLE_MAX_HOLE_COUNT = 1, .ACTIVE_SPAWN_DUST_AMOUNT = 100},
+		int = {.HOLE_MAX_HOLE_COUNT = 1, .HOLE_MASS = 1000, .ACTIVE_SPAWN_DUST_AMOUNT = 100},
 	}
 }
 

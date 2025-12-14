@@ -90,6 +90,16 @@ resource_can_buy :: proc {
 	resource_can_buy_multi,
 }
 
+resources_unlocked :: proc(costs: []Cost) -> bool {
+	for &cost in costs {
+		if !g.resources.unlocked[cost.type] {
+			return false
+		}
+	}
+
+	return true
+}
+
 
 resource_draw :: proc(resources: ^Resources) {
 	texts: [len(ResourceType)]cstring
