@@ -65,6 +65,10 @@ apply_node :: proc(node: ^Node) {
 		g.skills.float[data.type] += data.value
 	case IntData:
 		g.skills.int[data.type] += data.value
+	case ActiveData:
+		g.gameloop.actives.enabled += {data.type}
+	case ActiveCooldownData:
+		g.gameloop.actives.cooldown_reductions[data.type] += data.value
 	}
 }
 
@@ -181,7 +185,7 @@ skill_tree_render :: proc() {
 
 	NODE_WIDTH := i32(tree.node_size.x)
 	NODE_HEIGHT := i32(tree.node_size.y)
-	NODE_SPACING :: 60
+	NODE_SPACING :: 90
 	NODE_BORDER_SIZE :: 4
 
 	init_node: NodeType = .MAX_HOLE_COUNT_1
@@ -222,6 +226,10 @@ skill_tree_render :: proc() {
 
 		if nodes[type].level > 0 {
 			for connection in nodes[type].connections {
+				connection_node := nodes[connection.type]
+				// Will always do resource discovered check against first level
+				resources_unlocked(connection_node.costs[0][:]) or_continue
+
 				new_pos := get_new_pos(pos[type], connection.dir, NODE_SPACING)
 				pos[connection.type] = new_pos
 

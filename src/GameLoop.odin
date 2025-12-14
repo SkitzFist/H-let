@@ -2,7 +2,6 @@ package game
 import "core:fmt"
 import "core:math"
 import "core:slice"
-import "core:time"
 
 import rl "vendor:raylib"
 
@@ -44,7 +43,6 @@ game_loop_on_exit :: proc() {
 gameloop_input :: proc() {
 	gameloop := &g.gameloop
 	actives := &gameloop.actives
-	now := time.now()
 
 	if rl.IsKeyPressed(rl.KeyboardKey.T) {
 		switch_scene(.SKILL_TREE)
@@ -55,18 +53,7 @@ gameloop_input :: proc() {
 		g.gameloop.buttons[ButtonMap(gameloop.on_button)].func()
 	}
 
-	active_button_index := button_input(slice.enumerated_array(&actives.buttons))
-	if active_button_index != -1 && rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
-		active_type := ActiveType(active_button_index)
-		elapsed := time.diff(actives.cooldowns[active_type].last_used_at, now)
-		can_use := elapsed >= actives.cooldowns[active_type].cooldown
-
-		if can_use {
-			gameloop.actives.cooldowns[active_type].last_used_at = time.now()
-			//TODO when done prototyping, don't trigger actives from input, add to queue and trigger in update
-			gameloop.actives.active_use[active_type]()
-		}
-	}
+	active_button_index := actives_input(&gameloop.actives)
 
 	if gameloop.on_button == -1 && active_button_index == -1 {
 		hole_input(&g.holeManager)
@@ -186,8 +173,8 @@ gameloop_render :: proc() #no_bounds_check {
 
 	almost_black: rl.Color = {10, 10, 10, 255}
 	for &hole in g.holeManager.holes {
-		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size * 0.2, rl.BLACK)
-		//rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
+		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size / 2, rl.BLACK)
+		// rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
 	// object plain
@@ -209,7 +196,7 @@ gameloop_render :: proc() #no_bounds_check {
 	max_intensity := max_size / 200
 	rl.BeginBlendMode(rl.BlendMode.ADDITIVE)
 	for &hole in g.holeManager.holes {
-		dst = {hole.x, hole.y, hole.size * 2, hole.size * 2}
+		dst = {hole.x - hole.size, hole.y - hole.size, hole.size * 4, hole.size * 4}
 		origin = {hole.size, hole.size}
 
 		intensity := math.min(hole.size * inv_max_size, max_intensity)
@@ -243,6 +230,7 @@ gameloop_render :: proc() #no_bounds_check {
 	button_draw_active(
 		gameloop.actives.buttons,
 		gameloop.actives.cooldowns,
+		gameloop.actives.cooldown_reductions,
 		gameloop.actives.enabled,
 	)
 

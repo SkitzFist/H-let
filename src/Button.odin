@@ -88,9 +88,11 @@ button_draw :: proc(buttons: []Button) {
 button_draw_active :: proc(
 	buttons: [ActiveType]Button,
 	cooldowns: [ActiveType]Cooldown,
+	cooldown_reductions: [ActiveType]f32,
 	enabled: bit_set[ActiveType],
 ) {
 
+	now := time.now()
 	for button, type in buttons {
 		if type in enabled {
 			style := &BUTTON_STYLES[button.style]
@@ -104,8 +106,9 @@ button_draw_active :: proc(
 				i32(button.x + (button.width / 2 - text_size.x / 2)),
 				i32(button.y + (button.height / 2 - text_size.y / 2))
 
-			elapsed := time.diff(cooldowns[type].last_used_at, time.now())
-			perc := math.min(1.0, f32(elapsed) / f32(cooldowns[type].cooldown))
+			elapsed := f32(time.diff(cooldowns[type].last_used_at, now))
+			cooldown := f32(cooldowns[type].cooldown) / cooldown_reductions[type]
+			perc := math.min(1.0, elapsed / cooldown)
 
 			rl.DrawRectangleRounded(
 				{button.x, button.y, button.width, button.height},

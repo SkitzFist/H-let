@@ -21,7 +21,7 @@ object_stats_create_default :: proc() -> ObjectStats {
 }
 
 OBJECT_BASE_SIZE :: 2
-OBJECT_BASE_MASS :: 100
+OBJECT_BASE_MASS :: 1
 
 objects_add_random :: #force_inline proc() {
 

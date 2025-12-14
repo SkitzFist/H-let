@@ -16,14 +16,12 @@ HoleStats :: struct {
 	growth_rate:      f64,
 	start_size:       f32,
 	max_size:         f32,
-	reach_radius:     f32,
 }
 
 Hole :: struct {
 	using pos:       Position,
 	size:            f32,
 	using phys:      Physic,
-	reach_radius:    f32,
 	resources_eaten: [ResourceType]int,
 }
 
@@ -37,13 +35,7 @@ hole_manager_create_default :: proc() -> HoleManager {
 }
 
 hole_stats_create_default :: proc() -> HoleStats {
-	return {
-		evaporation_rate = 0.33,
-		growth_rate = 0.25,
-		start_size = 40,
-		max_size = 1000,
-		reach_radius = 2,
-	}
+	return {evaporation_rate = 0.33, growth_rate = 0.25, start_size = 30, max_size = 150}
 }
 
 hole_create_default :: proc() -> Hole {
@@ -54,9 +46,9 @@ hole_create_default :: proc() -> Hole {
 	skills := &g.skills
 
 	start_size := stats.start_size * skills.float[.HOLE_START_SIZE]
-	reach_radius := stats.reach_radius * skills.float[.HOLE_REACH_RADIUS]
+	mass: f32 = f32(skills.int[.HOLE_MASS])
 
-	return {x = pos.x, y = pos.y, size = start_size, reach_radius = reach_radius, mass = 100000.0}
+	return {x = pos.x, y = pos.y, size = start_size, mass = mass}
 }
 
 hole_remove :: proc(manager: ^HoleManager, index: int) {
@@ -65,15 +57,27 @@ hole_remove :: proc(manager: ^HoleManager, index: int) {
 }
 
 hole_input :: proc(manager: ^HoleManager) {
-	can_spawn_hole :=
-		rl.IsMouseButtonPressed(rl.MouseButton.LEFT) &&
-		manager.current < g.skills.int[.HOLE_MAX_HOLE_COUNT]
-
-	if can_spawn_hole {
-		append(&manager.holes, hole_create_default())
-		manager.current += 1
+	//Return early if mousebutton is nott pressed
+	if !rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+		return
 	}
 
+	mouse_pos := rl.GetMousePosition()
+	mouse_pos = rl.GetScreenToWorld2D(mouse_pos, game_camera())
+
+	// Return early if clicking inside another hole
+	for &hole in manager.holes {
+		if intersects_point_circle(mouse_pos.x, mouse_pos.y, hole.pos.x, hole.pos.y, hole.size) {
+			return
+		}
+	}
+
+	if manager.current >= g.skills.int[.HOLE_MAX_HOLE_COUNT] {
+		return
+	}
+
+	append(&manager.holes, hole_create_default())
+	manager.current += 1
 }
 
 hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
@@ -81,13 +85,14 @@ hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
 
 	p: f32 = 10
 	s: f32 = lambda + (1.0 / hole.size) * p
-	change := math.exp(-s * dt)
+	mass_factor := hole.mass / (f32(g.skills.int[.HOLE_MASS]) * 3)
+	change := (-s * dt) * mass_factor
 
-	hole.size *= change
+	hole.size *= math.exp(change)
 
 	is_evaporated := false
 
-	if hole.size < 2.0 {
+	if hole.size < 5.0 {
 		is_evaporated = true
 	}
 
@@ -102,9 +107,6 @@ hole_attract_objects :: proc(
 ) #no_bounds_check {
 	damp: f32 : 50
 
-
-	holeOuterRadius := hole.size * hole.reach_radius
-
 	pos := &objects.pos
 	size := &objects.size
 	phys := &objects.phys
@@ -117,17 +119,17 @@ hole_attract_objects :: proc(
 
 	for i in 0 ..< length {
 
-		if !intersects(
-			f32(hole.x),
-			f32(hole.y),
-			holeOuterRadius,
-			pos[i].x,
-			pos[i].y,
-			size[i].width,
-			size[i].height,
-		) {
-			continue
-		}
+		// if !intersects(
+		// 	f32(hole.x),
+		// 	f32(hole.y),
+		// 	holeOuterRadius,
+		// 	pos[i].x,
+		// 	pos[i].y,
+		// 	size[i].width,
+		// 	size[i].height,
+		// ) {
+		// 	continue
+		// }
 
 		holeInnerRadius := hole.size * 0.2
 		if intersects(
@@ -145,15 +147,17 @@ hole_attract_objects :: proc(
 
 		dx := f32(hole.x) - pos[i].x
 		dy := f32(hole.y) - pos[i].y
-
 		d2 := dx * dx + dy * dy
 
-		denom := d2 + damp
-		strength := hole.mass / denom
+		gForce := (hole.mass * phys[i].mass) / d2
+		strength := gForce / phys[i].mass
 
+		phys[i].ax += (dx * strength)
+		phys[i].ay += (dy * strength)
 
-		phys[i].ax += (dx * strength) / phys[i].mass
-		phys[i].ay += (dy * strength) / phys[i].mass
+		strength = gForce / hole.mass
+		hole.ax += (-dx * strength)
+		hole.ay += (-dy * strength)
 	}
 
 
@@ -175,25 +179,18 @@ hole_attract_objects :: proc(
 }
 
 hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
-	damp: f32 : 1000.0
-	holeOuterRadius := hole.size * hole.reach_radius
-
-	if !intersects(hole.x, hole.y, holeOuterRadius, other.x, other.y, other.size) {
-		return false
-	}
-
-	eat_radius := math.min(hole.size, other.size) / 100
+	eat_radius := math.min(hole.size, other.size) / 5
 	if intersects(hole.x, hole.y, eat_radius, other.x, other.y, eat_radius) {
 		return true
 	}
 
 	dx := hole.x - other.x
 	dy := hole.y - other.y
-
 	dist := dx * dx + dy * dy
 
-	denom := dist + damp
-	strength := hole.mass / denom
+	G :: 5.0
+	gForce := G * ((hole.mass * other.mass) / dist)
+	strength := gForce / other.mass
 
 	other.ax += (dx * strength)
 	other.ay += (dy * strength)
@@ -235,7 +232,7 @@ hole_apply_force :: proc(hole: ^Hole, dt: f32) {
 }
 
 hole_eat_hole :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
-	hole.mass += other.mass / 2
+	hole.mass += other.mass
 	hole.size += other.size
 	max_size := stats.max_size * g.skills.float[.HOLE_MAX_SIZE]
 	hole.size = math.min(hole.size, max_size)
