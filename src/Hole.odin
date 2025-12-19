@@ -1,11 +1,9 @@
 package game
 
-import c "components"
 import "core:math"
-import "core:math/rand"
 import rl "vendor:raylib"
 
-
+// TODO make holes soa
 HoleManager :: struct {
 	holes:   [dynamic]Hole,
 	stats:   HoleStats,
@@ -14,35 +12,43 @@ HoleManager :: struct {
 }
 
 HoleStats :: struct {
-	evaporationForce: f32,
+	evaporation_rate: f32,
 	growth_rate:      f64,
+	start_size:       f32,
 	max_size:         f32,
 }
 
 Hole :: struct {
-	using pos:    c.Position,
-	size:         f32,
-	using phys:   c.Physic,
-	reach_radius: f32,
+	using pos:       Position,
+	size:            f32,
+	using phys:      Physic,
+	resources_eaten: [ResourceType]int,
+}
+
+hole_manager_create_default :: proc() -> HoleManager {
+	return {
+		holes = make([dynamic]Hole, 0, 1000, context.allocator),
+		max = 1,
+		current = 0,
+		stats = hole_stats_create_default(),
+	}
+}
+
+hole_stats_create_default :: proc() -> HoleStats {
+	return {evaporation_rate = 0.33, growth_rate = 0.25, start_size = 30, max_size = 150}
 }
 
 hole_create_default :: proc() -> Hole {
 	mousePos := rl.GetMousePosition()
 	pos := rl.GetScreenToWorld2D(mousePos, game_camera())
 
-	return {x = pos.x, y = pos.y, size = 80, reach_radius = 4.0, mass = 100000.0}
-}
+	stats := &g.holeManager.stats
+	skills := &g.skills
 
-hole_create_random :: proc() -> Hole {
-	factor := rand.float32_range(1, 10)
+	start_size := stats.start_size * skills.float[.HOLE_START_SIZE]
+	mass: f32 = f32(skills.int[.HOLE_MASS])
 
-	return {
-		x = rand.float32_range(0, f32(rl.GetRenderWidth())),
-		y = rand.float32_range(0, f32(rl.GetRenderHeight())),
-		size = 10 * factor,
-		reach_radius = 4.0,
-		mass = 10000.0 * factor,
-	}
+	return {x = pos.x, y = pos.y, size = start_size, mass = mass}
 }
 
 hole_remove :: proc(manager: ^HoleManager, index: int) {
@@ -50,24 +56,43 @@ hole_remove :: proc(manager: ^HoleManager, index: int) {
 	manager.current -= 1
 }
 
-hole_input_size :: proc(manager: ^HoleManager) {
-	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) && manager.current < manager.max {
-		append(&manager.holes, hole_create_default())
-		manager.current += 1
+hole_input :: proc(manager: ^HoleManager) {
+	//Return early if mousebutton is nott pressed
+	if !rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+		return
 	}
 
+	mouse_pos := rl.GetMousePosition()
+	mouse_pos = rl.GetScreenToWorld2D(mouse_pos, game_camera())
+
+	// Return early if clicking inside another hole
+	for &hole in manager.holes {
+		if intersects_point_circle(mouse_pos.x, mouse_pos.y, hole.pos.x, hole.pos.y, hole.size) {
+			return
+		}
+	}
+
+	if manager.current >= g.skills.int[.HOLE_MAX_HOLE_COUNT] {
+		return
+	}
+
+	append(&manager.holes, hole_create_default())
+	manager.current += 1
 }
 
 hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
-	lambda: f32 : 0.33
+	lambda: f32 = stats.evaporation_rate * g.skills.float[.HOLE_EVAPORATION_RATE]
 
-	p: f32 = 5
+	p: f32 = 10
 	s: f32 = lambda + (1.0 / hole.size) * p
-	hole.size *= math.exp(-s * dt)
+	mass_factor := hole.mass / (f32(g.skills.int[.HOLE_MASS]) * 3)
+	change := (-s * dt) * mass_factor
+
+	hole.size *= math.exp(change)
 
 	is_evaporated := false
 
-	if hole.size < 2.0 {
+	if hole.size < 5.0 {
 		is_evaporated = true
 	}
 
@@ -77,86 +102,81 @@ hole_evaporate :: proc(hole: ^Hole, stats: ^HoleStats, dt: f32) -> bool {
 hole_attract_objects :: proc(
 	hole: ^Hole,
 	stats: ^HoleStats,
-	positions: ^#soa[dynamic]c.Position,
-	physics: ^#soa[dynamic]c.Physic,
-	sizes: ^#soa[dynamic]c.Size,
+	objects: ^#soa[dynamic]Object,
 	toRemove: ^[dynamic]int,
 ) #no_bounds_check {
-	damp: f32 : 50.0
+	damp: f32 : 50
 
+	pos := &objects.pos
+	size := &objects.size
+	phys := &objects.phys
 
-	holeOuterRadius := hole.size * hole.reach_radius
+	length := len(objects)
 
-	px := positions.x
-	py := positions.y
-	sw := sizes.width
-	sh := sizes.height
-	ax := physics.ax
-	ay := physics.ay
-	mass := physics.mass
+	skills := &g.skills
+	growth_rate := stats.growth_rate * f64(skills.float[.HOLE_GROWTH_RATE])
+	max_size := stats.max_size * skills.float[.HOLE_MAX_SIZE]
 
-	length := len(positions^)
 	for i in 0 ..< length {
-
-		if !intersects(f32(hole.x), f32(hole.y), holeOuterRadius, px[i], py[i], sw[i], sh[i]) {
-			continue
-		}
-
-		holeInnerRadius := hole.size / 2
-		if intersects(f32(hole.x), f32(hole.y), holeInnerRadius, px[i], py[i], sw[i], sh[i]) {
+		holeInnerRadius := hole.size * 0.2
+		if intersects(
+			f32(hole.x),
+			f32(hole.y),
+			holeInnerRadius,
+			pos[i].x,
+			pos[i].y,
+			size[i].width,
+			size[i].height,
+		) {
 			append(toRemove, i)
 			continue
 		}
 
-		dx := f32(hole.x) - px[i]
-		dy := f32(hole.y) - py[i]
-
+		dx := f32(hole.x) - pos[i].x
+		dy := f32(hole.y) - pos[i].y
 		d2 := dx * dx + dy * dy
 
-		denom := d2 + damp
-		strength := hole.mass / denom
+		gForce := (hole.mass * phys[i].mass) / d2
+		strength := gForce / phys[i].mass
 
+		phys[i].ax += (dx * strength)
+		phys[i].ay += (dy * strength)
 
-		ax[i] += (dx * strength) / mass[i]
-		ay[i] += (dy * strength) / mass[i]
+		strength = gForce / hole.mass
+		hole.ax += (-dx * strength)
+		hole.ay += (-dy * strength)
 	}
 
-
+	//TODO move collision resolution out of this
 	size_growth: f64 = 0.0
 	mass_growth: f64 = 0.0
 
 	for i in toRemove {
-		size_growth += (f64(sw[i]) + f64(sh[i]) / 2.0) * stats.growth_rate
-		mass_growth += f64(mass[i])
+		size_growth += ((f64(size[i].width) + f64(size[i].height)) / 2.0) * growth_rate
+		mass_growth += f64(phys[i].mass)
 	}
 
 	if mass_growth > 0 {
-		hole.size += f32(size_growth)
+		max_growth_per_frame := hole.size * 0.025
+		hole.size += math.min(max_growth_per_frame, f32(size_growth))
 		hole.mass += f32(mass_growth)
-		hole.size = math.min(hole.size, stats.max_size)
+		hole.size = math.min(hole.size, max_size)
 	}
 }
 
 hole_attract_hole :: proc(hole: ^Hole, other: ^Hole) -> (isColliding: bool) {
-	damp: f32 : 1000.0
-	holeOuterRadius := hole.size * hole.reach_radius
-
-	if !intersects(hole.x, hole.y, holeOuterRadius, other.x, other.y, other.size) {
-		return false
-	}
-
-	eat_radius := math.min(hole.size, other.size) / 100
+	eat_radius := math.min(hole.size, other.size) / 5
 	if intersects(hole.x, hole.y, eat_radius, other.x, other.y, eat_radius) {
 		return true
 	}
 
 	dx := hole.x - other.x
 	dy := hole.y - other.y
-
 	dist := dx * dx + dy * dy
 
-	denom := dist + damp
-	strength := hole.mass / denom
+	G :: 5.0
+	gForce := G * ((hole.mass * other.mass) / dist)
+	strength := gForce / other.mass
 
 	other.ax += (dx * strength)
 	other.ay += (dy * strength)
@@ -197,8 +217,13 @@ hole_apply_force :: proc(hole: ^Hole, dt: f32) {
 	}
 }
 
-hole_eat :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
-	hole.mass += other.mass / 4
-	hole.size += other.size / 4
-	hole.size = math.min(hole.size, stats.max_size)
+hole_eat_hole :: proc(hole: ^Hole, other: ^Hole, stats: ^HoleStats) {
+	hole.mass += other.mass
+	hole.size += other.size
+	max_size := stats.max_size * g.skills.float[.HOLE_MAX_SIZE]
+	hole.size = math.min(hole.size, max_size)
+	hole.resources_eaten += other.resources_eaten
+	other.resources_eaten = {}
+	hole.resources_eaten[.HOLE] += 1
 }
+

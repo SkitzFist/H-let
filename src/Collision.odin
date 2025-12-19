@@ -26,8 +26,22 @@ intersects_circle_circle :: proc(x1, y1, r1: f32, x2, y2, r2: f32) -> bool {
 	return dist_sq <= radius_sum * radius_sum
 }
 
+intersects_point_circle :: proc(px, py, cx, cy, cr: f32) -> bool {
+	dx := px - cx
+	dy := py - cy
+	d2 := dx * dx + dy * dy
+	r2 := cr * cr
+
+	return d2 <= r2
+}
+
+intersects_point_rect :: proc(px, py, rx, ry, rw, rh: f32) -> bool {
+	return !(px > rx + rw || px < rx || py > ry + rh || py < ry)
+}
+
 
 intersects :: proc {
 	intersects_circle_rect,
 	intersects_circle_circle,
 }
+
