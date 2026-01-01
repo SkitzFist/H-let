@@ -32,7 +32,7 @@ gameloop_create_default :: proc() -> Gameloop {
 	return gameloop
 }
 
-gameloop_on_enter :: proc() {
+game_loop_on_enter :: proc() {
 
 }
 
@@ -40,7 +40,7 @@ game_loop_on_exit :: proc() {
 
 }
 
-gameloop_input :: proc() {
+game_loop_input :: proc() {
 	gameloop := &g.gameloop
 	actives := &gameloop.actives
 
@@ -67,70 +67,61 @@ gameloop_input :: proc() {
 }
 
 curr: f32 = 0.0
-//TODO refactor this entire mess
-gameloop_update :: proc(dt: f32) {
+
+game_loop_update :: proc(dt: f32) {
 	holeManager := &g.holeManager
+	holes := &holeManager.holes
 	objects := &g.objects
 	obj_stats := &g.objectStats
 	skills := &g.skills
 	resources := &g.resources
 	gameloop := &g.gameloop
+	tileMap := &g.tileMap
 
-	//todo cleanup, should allocate from custom tmp allocator (custom impl)
-	hole_to_remove := make([dynamic]bool, len(g.holeManager.holes), context.temp_allocator)
-	obj_to_remove := make([dynamic]int, 0, context.temp_allocator)
-	for &hole, i in holeManager.holes {
-		if hole_to_remove[i] {
-			continue
-		}
+	bench_start("set_tile_index")
+	set_tile_index(objects.tile_index, objects.x, objects.y, len(objects))
+	bench_end()
 
-		if hole_evaporate(&hole, &holeManager.stats, dt) {
-			hole_to_remove[i] = true
-		}
+	bench_start("build_tile_map")
+	build_tile_map(tileMap, objects.tile_index, len(objects))
+	bench_end()
 
-		hole_attract_objects(&hole, &holeManager.stats, objects, &obj_to_remove)
+	attract(
+		holes.x,
+		holes.y,
+		holes.mass,
+		holes.ax,
+		holes.ay,
+		objects.x,
+		objects.y,
+		objects.mass,
+		objects.ax,
+		objects.ay,
+		len(holes),
+		len(objects),
+		2.5,
+	)
 
-		#reverse for obj in obj_to_remove {
-			resource_drop := objects[obj].resource_drop
-			hole.resources_eaten[resource_drop.type] += resource_drop.value
+	// attract_same_simd(objects.x, objects.y, objects.mass, objects.ax, objects.ay, len(objects))
 
-			objects_remove(obj)
-		}
+	friction :: 0.1
+	bench_start("apply_force")
+	apply_force(holes.x, holes.y, holes.ax, holes.ay, holes.vx, holes.vy, len(holes), dt, friction)
 
-		clear_dynamic_array(&obj_to_remove)
-
-		for &other, oi in g.holeManager.holes {
-			if i == oi || hole_to_remove[oi] {
-				continue
-			}
-
-			if hole_attract_hole(&hole, &other) {
-				if hole.size > other.size {
-					hole_to_remove[oi] = true
-					hole_eat_hole(&hole, &other, &g.holeManager.stats)
-
-				} else {
-					hole_to_remove[i] = true
-					hole_eat_hole(&other, &hole, &g.holeManager.stats)
-					continue
-				}
-			}
-		}
-
-		hole_apply_force(&hole, dt)
-	}
-
-	#reverse for shouldRemove, i in hole_to_remove {
-		if shouldRemove {
-			resource_gain_multi(resources, holeManager.holes[i].resources_eaten)
-			hole_remove(holeManager, i)
-		}
-	}
-
-	objects_apply_forces(objects.pos, objects.phys, len(objects), dt)
+	apply_force(
+		objects.x,
+		objects.y,
+		objects.ax,
+		objects.ay,
+		objects.vx,
+		objects.vy,
+		len(objects),
+		dt,
+		friction,
+	)
+	bench_end()
 
 	curr += dt
-
 	object_spawn_rate := obj_stats.spawn_rate / skills.float[.OBJECT_SPAWN_RATE]
 	for curr >= object_spawn_rate {
 		objects_add_random()
@@ -147,12 +138,11 @@ gameloop_update :: proc(dt: f32) {
 	button.height = button_height
 }
 
-gameloop_render :: proc() #no_bounds_check {
+game_loop_render :: proc() #no_bounds_check {
 	textures := &g.textures
 	objects := &g.objects
-	pos := &objects.pos
-	size := &objects.size
 	gameloop := &g.gameloop
+	holes := &g.holeManager.holes
 
 	// // BGR
 	src: rl.Rectangle = {
@@ -171,16 +161,16 @@ gameloop_render :: proc() #no_bounds_check {
 	origin: rl.Vector2
 
 	almost_black: rl.Color = {10, 10, 10, 255}
-	for &hole in g.holeManager.holes {
-		rl.DrawCircle(i32(hole.x), i32(hole.y), hole.size / 2, rl.BLACK)
+	for i in 0 ..< len(holes) {
+		rl.DrawCircle(i32(holes[i].x), i32(holes[i].y), holes[i].size / 2, rl.BLACK)
 		// rl.DrawCircleLines(i32(hole.x), i32(hole.y), hole.size * hole.reach_radius, rl.BLUE)
 	}
 
 	// object plain
 	cloud_src: rl.Rectangle = {0, 0, f32(textures[.CLOUD].width), f32(textures[.CLOUD].height)}
 	for i in 0 ..< len(objects) {
-		dst = {pos[i].x, pos[i].y, size[i].width * 2, size[i].height * 2}
-		origin = {size[i].width, size[i].height}
+		dst = {objects.x[i], objects.y[i], objects.width[i] * 2, objects.height[i] * 2}
+		origin = {objects.width[i], objects.height[i]}
 		rl.DrawTexturePro(textures[.CLOUD], cloud_src, dst, origin, 0.0, rl.WHITE)
 	}
 
@@ -194,11 +184,16 @@ gameloop_render :: proc() #no_bounds_check {
 
 	max_intensity := max_size / 200
 	rl.BeginBlendMode(rl.BlendMode.ADDITIVE)
-	for &hole in g.holeManager.holes {
-		dst = {hole.x - hole.size, hole.y - hole.size, hole.size * 4, hole.size * 4}
-		origin = {hole.size, hole.size}
+	for i in 0 ..< len(holes) {
+		dst = {
+			holes[i].x - holes[i].size,
+			holes[i].y - holes[i].size,
+			holes[i].size * 4,
+			holes[i].size * 4,
+		}
+		origin = {holes[i].size, holes[i].size}
 
-		intensity := math.min(hole.size * inv_max_size, max_intensity)
+		intensity := math.min(holes[i].size * inv_max_size, max_intensity)
 		lowest: f32 = 10
 		col_val: u8 = u8(lowest + f32(255 - lowest) * intensity)
 		col: rl.Color = {col_val, col_val, col_val, 255}
@@ -209,9 +204,8 @@ gameloop_render :: proc() #no_bounds_check {
 
 	// //object glow
 	for i in 0 ..< len(objects) {
-		dst = {pos[i].x, pos[i].y, size[i].width * 2, size[i].height * 2}
-		origin = {size[i].width, size[i].height}
-
+		dst = {objects.x[i], objects.y[i], objects.width[i] * 2, objects.height[i] * 2}
+		origin = {objects.width[i], objects.height[i]}
 		//randRotate := rand.float32_range(0, 360)
 		//rl.DrawTexturePro(textures[.CLOUD], cloud_src, dst, origin, 0, rl.WHITE)
 		rl.DrawTexturePro(dual_texture, src_bot, dst, origin, 0.0, rl.BLUE)
@@ -233,6 +227,11 @@ gameloop_render :: proc() #no_bounds_check {
 		gameloop.actives.enabled,
 	)
 
+
+	draw_tile_map()
+
+	bench_draw(2, 60)
+
 	FONT_SIZE :: 20
 	manager := &g.holeManager
 	holes_text := fmt.ctprintf("Holes: %i/%i", manager.current, g.skills.int[.HOLE_MAX_HOLE_COUNT])
@@ -242,18 +241,10 @@ gameloop_render :: proc() #no_bounds_check {
 	rl.DrawText(holes_text, x, y, FONT_SIZE, rl.RAYWHITE)
 
 	frame_col: rl.Color = {130, 130, 130, 100}
-	rl.DrawRectangle(2, 2, 200, 150, frame_col)
+	rl.DrawRectangle(2, 2, 200, 50, frame_col)
 
 	rl.DrawText(
-		fmt.ctprintf(
-			"fps: %i\nObjects: %i\nHoles:%i\ninput: %.4fms\nupdate: %.4fms\nrender: %.4fms",
-			rl.GetFPS(),
-			len(objects),
-			len(g.holeManager.holes),
-			input_time,
-			update_time,
-			render_time,
-		),
+		fmt.ctprintf("fps: %i\nObjects: %i", rl.GetFPS(), len(objects)),
 		5,
 		5,
 		20,
