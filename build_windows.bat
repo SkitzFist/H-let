@@ -57,7 +57,7 @@ if %GAME_RUNNING% == true (
 
 :: Build game.exe, which starts the program and loads game.dll och does the logic for hot reloading.
 echo Building %EXE%
-odin build src\main_hot_reload -strict-style -vet -debug -out:%EXE% -pdb-name:%OUT_DIR%\main_hot_reload.pdb
+odin build src\main_hot_reload -strict-style -vet -no-bounds-check -o:speed -out:%EXE% -pdb-name:%OUT_DIR%\main_hot_reload.pdb
 IF %ERRORLEVEL% NEQ 0 exit /b 1
 
 set ODIN_PATH="C:\libs\odin"

@@ -11,7 +11,8 @@ odin build src/main_web \
     -build-mode:obj \
     -define:RAYLIB_WASM_LIB=env.o \
     -define:RAYGUI_WASM_LIB=env.o \
-    -out:$OUT_DIR/game.wasm.o
+    -out:$OUT_DIR/game.wasm.o \
+    -o:speed
 
 ODIN_PATH=$(odin root)
 cp $ODIN_PATH/core/sys/wasm/js/odin.js $OUT_DIR

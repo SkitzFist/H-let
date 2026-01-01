@@ -50,7 +50,7 @@ if pgrep -f $EXE > /dev/null; then
 fi
 
 echo "Building $EXE"
-odin build src/main_hot_reload -out:$EXE -strict-style -vet -debug
+odin build src/main_hot_reload -out:$EXE -strict-style -vet -no-bounds-check -o:speed
 
 if [ $# -ge 1 ] && [ $1 == "run" ]; then
     echo "Running $EXE"
